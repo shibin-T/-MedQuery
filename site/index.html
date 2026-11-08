@@ -1,0 +1,2310 @@
+<title>MedQuery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,650&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a single large search bar centred on an empty page; live suggestions with pictures drop down directly beneath it; answers appear below only after a search */
+:root{
+  --paper:#f3f6f8; --card:#ffffff; --ink:#132433; --muted:#5a6b78; --rule:#d6dfe6;
+  --accent:#1c5d8c; --accent-ink:#ffffff; --accent-soft:#e2eef7;
+  --warn:#a3361f; --warn-soft:#fbe9e4;
+  /* vacutainer cap colours, used as kind markers */
+  --cap-disease:#c0392b; --cap-test:#7b5ea7; --cap-drug:#b8860b; --cap-q:#2f7d5b;
+  --f-display:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#0e161d; --card:#15212b; --ink:#e4ecf2; --muted:#93a5b3; --rule:#263643;
+  --accent:#6fb3e3; --accent-ink:#0b1620; --accent-soft:#1b3346;
+  --warn:#f08a70; --warn-soft:#3a1f19;
+  --cap-disease:#e8695a; --cap-test:#a98bd6; --cap-drug:#dcb24a; --cap-q:#5cbf90;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#0e161d; --card:#15212b; --ink:#e4ecf2; --muted:#93a5b3; --rule:#263643;
+  --accent:#6fb3e3; --accent-ink:#0b1620; --accent-soft:#1b3346;
+  --warn:#f08a70; --warn-soft:#3a1f19;
+  --cap-disease:#e8695a; --cap-test:#a98bd6; --cap-drug:#dcb24a; --cap-q:#5cbf90;
+  color-scheme:dark}
+
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 48px}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.hero{max-width:1018px;margin:0 auto;padding-top:clamp(56px,20vh,200px);display:grid;grid-template-columns:minmax(0,1fr);gap:22px;transition:padding .25s ease}
+body.has-results .hero{padding-top:24px;gap:14px}
+.brand{text-align:center}
+.brand h1{font-family:var(--f-display);font-weight:650;font-size:clamp(2.4rem,7vw,3.6rem);margin:0;letter-spacing:-.015em;line-height:1}
+.brand h1 span{color:var(--accent)}
+body.has-results .brand h1{font-size:1.8rem}
+
+.searchbox{position:relative}
+form.search{display:flex;align-items:center;background:var(--card);border:2px solid var(--ink);border-radius:var(--r);min-height:56px;position:relative;z-index:3}
+form.search svg.lens{flex:none;margin-left:22px;color:var(--muted)}
+form.search input{flex:1;min-width:0;border:0;background:transparent;color:var(--ink);font:inherit;font-size:clamp(1.05rem,2.4vw,1.3rem);padding:12px 16px}
+form.search input::placeholder{color:var(--muted)}
+form.search input:focus{outline:none}
+form.search input::-webkit-search-cancel-button{display:none}
+form.search:focus-within{box-shadow:0 0 0 4px var(--accent-soft)}
+form.search button{align-self:stretch;border:0;background:var(--ink);color:var(--paper);font:600 1.05rem var(--f-body);padding:0 30px;cursor:pointer;border-radius:0 calc(var(--r) - 3px) calc(var(--r) - 3px) 0}
+form.search button:hover{background:var(--accent);color:var(--accent-ink)}
+body.open form.search{border-radius:var(--r) var(--r) 0 0;border-bottom-color:var(--rule)}
+body.open form.search button{border-bottom-right-radius:0}
+@media (max-width:520px){form.search button{padding:0 18px}form.search svg.lens{margin-left:14px}}
+
+/* suggestion panel */
+.sugg{position:absolute;left:0;right:0;top:100%;z-index:2;background:var(--card);border:2px solid var(--ink);border-top:0;border-radius:0 0 var(--r) var(--r);box-shadow:0 18px 40px -18px rgba(10,25,40,.35);max-height:min(70vh,560px);overflow-y:auto}
+.sugg-head{display:flex;justify-content:space-between;gap:10px;padding:10px 18px 6px;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sugg ul{list-style:none;margin:0;padding:0 8px 8px}
+.opt{display:flex;align-items:center;gap:14px;padding:8px 10px;border-radius:10px;cursor:pointer}
+.opt[aria-selected="true"],.opt:hover{background:var(--accent-soft)}
+.pic{flex:none;width:60px;height:60px;border-radius:12px;display:grid;place-items:center;position:relative;overflow:hidden}
+.pic::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--kc) 30%,transparent)}
+.pic svg{width:38px;height:38px}
+.opt-text{min-width:0;display:grid;gap:1px}
+.opt-term{font-size:1.05rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt-term mark{background:none;color:var(--accent);font-weight:700}
+.opt-sub{font-size:.85rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.opt-kind{margin-left:auto;flex:none;display:flex;align-items:center;gap:6px;font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+@media (max-width:520px){.sugg-head span:last-child{display:none}.opt-kind span{display:none}.pic{width:50px;height:50px}.pic svg{width:32px;height:32px}}
+.sugg .divider{padding:10px 18px 4px;font-family:var(--f-mono);font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:center}
+.sugg .divider .dots::after{content:"…";animation:blink 1s steps(2) infinite}
+@keyframes blink{50%{opacity:.2}}
+.cap{width:10px;height:10px;border-radius:3px 3px 5px 5px;display:inline-block;flex:none}
+
+#results{margin-top:28px}
+main.grid{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:28px;align-items:start}
+@media (max-width:860px){main.grid{grid-template-columns:minmax(0,1fr)}}
+
+.report{background:var(--card);border:1px solid var(--rule);border-radius:12px;overflow:hidden;min-width:0}
+.report-head{padding:20px 22px 16px;border-bottom:1px solid var(--rule);display:grid;gap:8px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;font-family:var(--f-mono);font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.kind{display:inline-flex;align-items:center;gap:6px;color:var(--ink);font-weight:500}
+.report h2{font-family:var(--f-display);font-weight:650;font-size:clamp(1.5rem,3.6vw,2.1rem);line-height:1.15;margin:0;text-wrap:balance}
+.aka{color:var(--muted);font-size:.9rem}
+.summary{font-size:1.05rem;max-width:68ch;margin:4px 0 0}
+.alert{margin:16px 22px 0;padding:12px 14px;border-radius:8px;background:var(--warn-soft);color:var(--ink);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);font-size:.92rem}
+.alert strong{color:var(--warn);display:block;font-size:.72rem;font-family:var(--f-mono);letter-spacing:.07em;text-transform:uppercase;margin-bottom:4px}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;margin:16px 22px 0;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.fact{padding:10px 12px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);margin:0 -1px -1px 0;min-width:0}
+.fact dt{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.fact dd{margin:2px 0 0;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sections{padding:8px 22px 22px;display:grid;gap:4px}
+.sec{border-top:1px solid var(--rule);padding-top:16px;margin-top:14px}
+.sec:first-child{border-top:0;margin-top:6px}
+.sec h3{font-family:var(--f-mono);font-size:.74rem;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin:0 0 8px}
+.sec p{margin:0 0 8px;max-width:68ch}
+.sec ul{margin:0;padding-left:1.15em;max-width:68ch;display:grid;gap:4px}
+.tbl{overflow-x:auto;margin-top:10px;border:1px solid var(--rule);border-radius:8px}
+.tbl table{border-collapse:collapse;width:100%;font-size:.9rem}
+.tbl th,.tbl td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--rule);vertical-align:top}
+.tbl th{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:500;background:color-mix(in srgb,var(--paper) 60%,var(--card))}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td{font-variant-numeric:tabular-nums}
+.evidence{margin:0 22px 18px;padding:10px 14px;background:var(--accent-soft);border-radius:8px;font-size:.88rem}
+.evidence h4{margin:0 0 6px;font-family:var(--f-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.evidence ul{margin:0;padding-left:1.1em}
+.conf{display:inline-block;font-family:var(--f-mono);font-size:.7rem;padding:2px 8px;border-radius:4px;border:1px solid currentColor}
+.followup{border-top:1px solid var(--rule);padding:16px 22px 20px;display:grid;gap:10px}
+.followup .related{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:999px;padding:4px 11px;font:500 .83rem var(--f-body);cursor:pointer}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+form.fu{display:flex;gap:8px}
+form.fu input{flex:1;min-width:0;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:10px 12px;font:inherit;font-size:.95rem}
+form.fu button{border:1px solid var(--ink);background:var(--card);color:var(--ink);border-radius:8px;padding:0 14px;font:600 .88rem var(--f-body);cursor:pointer}
+.disclaimer{padding:12px 22px 16px;border-top:1px solid var(--rule);font-size:.78rem;color:var(--muted)}
+.loading{padding:28px 22px;display:grid;gap:14px}
+.loading .q{font-family:var(--f-display);font-size:1.4rem;font-weight:500}
+.steps{list-style:none;padding:0;margin:0;display:grid;gap:6px;font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
+.steps li.on{color:var(--ink)}
+.steps li::before{content:"○ "}
+.steps li.on::before{content:"● ";color:var(--accent)}
+.bar{height:3px;background:var(--rule);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:30%;background:var(--accent);animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(340%)}}
+@media (prefers-reduced-motion:reduce){.bar i,.sugg .divider .dots::after{animation:none}.bar i{width:100%;opacity:.5}.hero{transition:none}}
+.stop{justify-self:start;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:6px;padding:6px 12px;font:500 .85rem var(--f-body);cursor:pointer}
+.err{padding:22px;display:grid;gap:10px}
+aside.rail{min-width:0}
+.panel{border-top:2px solid var(--ink);padding-top:10px}
+.panel h4{margin:0 0 8px;font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;font-weight:500}
+.panel p{margin:0 0 8px;font-size:.85rem;color:var(--muted)}
+.srcs{list-style:none;padding:0;margin:0;display:grid}
+.srcs li{border-bottom:1px solid var(--rule)}
+.srcs a{display:flex;justify-content:space-between;gap:8px;padding:8px 0;text-decoration:none;color:var(--ink);font-size:.9rem}
+.srcs a span{color:var(--muted);font-family:var(--f-mono);font-size:.7rem;align-self:center;white-space:nowrap}
+.srcs a:hover{color:var(--accent)}
+.lvl{border:1px solid var(--rule);padding:1px 8px;border-radius:4px}
+.sec h4{margin:0 0 4px;font-size:.82rem;font-weight:600;color:var(--muted)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px}
+.note{font-size:.85rem;color:var(--muted);margin:6px 0 0!important}
+.remedies{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.remedy{border:1px solid var(--rule);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start}
+.remedy p{margin:0!important;font-size:.92rem}
+.remedy-name{font-weight:600}
+.allergen{background:var(--warn-soft);color:var(--ink);border-radius:6px;padding:7px 9px;font-size:.84rem;border-left:3px solid var(--warn)}
+.allergen b{color:var(--warn)}
+.no-allergen{font-size:.8rem;color:var(--muted)}
+.curbar{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.88rem;color:var(--muted)}
+.curbar select,.field select,.field input{font:inherit;font-size:.92rem;color:var(--ink);background:var(--paper);border:1px solid var(--rule);border-radius:8px;padding:7px 10px}
+.money{white-space:nowrap;font-weight:600}
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--accent);cursor:pointer;text-align:left;text-decoration:underline;text-underline-offset:3px;text-decoration-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.dep{color:var(--cap-test);font-weight:700}
+.factors{margin-top:12px;border:1.5px solid var(--cap-test);border-radius:12px;padding:14px;display:grid;gap:12px;background:color-mix(in srgb,var(--cap-test) 7%,var(--card))}
+.fac-head{font-size:.92rem}
+.fields{display:flex;flex-wrap:wrap;gap:12px}
+.field{display:grid;gap:4px;min-width:130px;flex:1 1 130px}
+.field label{font-family:var(--f-mono);font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.fac-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.more{padding:4px 22px 18px}
+.more-btn{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:10px;padding:10px 16px;font:600 .95rem var(--f-body);cursor:pointer}
+.more-btn span{font-weight:400;font-size:.78rem;opacity:.8}
+.more-btn:hover{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.more-btn.ghost{background:transparent;color:var(--ink)}
+.more-btn.small{padding:8px 14px;font-size:.88rem}
+.more-btn:disabled{opacity:.6;cursor:wait}
+details.evidence summary{cursor:pointer;font-family:var(--f-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;gap:10px;align-items:center}
+details.evidence ul{margin-top:8px}
+.define{position:fixed;z-index:50;background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:12px;padding:12px 14px 14px;box-shadow:0 14px 36px -12px rgba(10,25,40,.45);display:grid;gap:4px}
+.def-term{font-family:var(--f-display);font-weight:650;font-size:1.15rem;padding-right:24px}
+.def-body{margin:0;font-size:.92rem}
+.def-x{position:absolute;top:6px;right:8px;border:0;background:none;color:var(--muted);font-size:1.3rem;line-height:1;cursor:pointer;padding:4px}
+.def-more{font-size:.85rem;margin-top:4px}
+.report ::selection{background:color-mix(in srgb,var(--accent) 30%,transparent)}
+.figma-badge{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:40;font-family:var(--f-mono);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--card);border:1px solid var(--rule);border-radius:999px;padding:4px 10px 4px 22px;pointer-events:none}
+.figma-badge::before{content:"";position:absolute;left:9px;top:50%;width:7px;height:7px;margin-top:-3.5px;border-radius:50%;background:var(--cap-q)}
+.logo{display:inline-block;cursor:pointer;user-select:text;-webkit-user-select:text;border-radius:14px;padding:4px 14px;transition:background .15s ease,box-shadow .15s ease}
+.logo:hover,.logo:focus-visible{background:var(--accent-soft);box-shadow:0 0 0 2px var(--accent-soft)}
+.logo:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.logo ::selection{background:var(--accent);color:var(--accent-ink)}
+.about{position:fixed;z-index:45;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(380px,calc(100vw - 32px));max-height:min(78vh,620px);display:flex;flex-direction:column;gap:10px;background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:16px;padding:16px 16px 14px;box-shadow:0 22px 50px -18px rgba(10,25,40,.45)}
+.about-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.about-title{font-family:var(--f-display);font-weight:650;font-size:1.3rem}
+.about-brand span{color:var(--accent)}
+.about-x{border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1;cursor:pointer;padding:2px 6px}
+.about-lede{margin:0;font-size:.95rem}
+.about-list{margin:0;padding-left:1.1em;font-size:.88rem;display:grid;gap:3px}
+.about-warn{margin:0;font-size:.8rem;color:var(--muted)}
+.about-log{display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:0}
+.about-log:empty{display:none}
+.msg{padding:8px 11px;border-radius:12px;font-size:.9rem;max-width:88%;white-space:pre-wrap}
+.msg.me{align-self:flex-end;background:var(--ink);color:var(--paper)}
+.msg.bot{align-self:flex-start;background:var(--accent-soft)}
+.about-form{display:flex;gap:8px}
+.about-form input,.care-form input{flex:1;min-width:0;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 11px;font:inherit;font-size:.92rem}
+.about-form button,.care-form button{border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:8px;padding:0 14px;font:600 .88rem var(--f-body);cursor:pointer}
+@media (max-width:520px){.about{left:max(12px,env(safe-area-inset-left,0px));right:max(12px,env(safe-area-inset-right,0px));width:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px))}}
+[hidden]{display:none!important}
+.care{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-bottom:22px}
+.care>*{min-width:0}
+.sos-box,.care-list{grid-template-columns:minmax(0,1fr)}
+.place-name,.place-meta,.place-area{overflow-wrap:anywhere}
+.sos-box{display:grid;gap:8px}
+.sos{display:flex;align-items:center;gap:12px;text-decoration:none;background:var(--warn);color:var(--accent-ink);border-radius:12px;padding:12px 14px}
+.sos:hover{filter:brightness(1.08)}
+.sos-icon{font-size:1.5rem;line-height:1}
+.sos b{display:block;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.sos small{display:block;font-size:.78rem;opacity:.9}
+.sos-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sos-alt{font-weight:600;font-size:.88rem;color:var(--warn)}
+.sos-num{font-family:var(--f-mono);font-size:.85rem;user-select:all}
+.mini{display:inline-block;border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:6px;padding:3px 8px;font:500 .78rem var(--f-body);text-decoration:none;cursor:pointer}
+.mini:hover{border-color:var(--accent);color:var(--accent)}
+.care-form{display:flex;gap:6px}
+.care-form button{padding:0 10px;font-size:.82rem}
+.care-list{display:grid;gap:10px}
+.care-note{margin:0;font-size:.8rem;color:var(--muted)}
+.place{border:1px solid var(--rule);border-radius:10px;padding:10px 11px;display:grid;gap:3px;background:var(--card)}
+.place-name{font-weight:600;font-size:.92rem}
+.place-meta,.place-area{font-size:.8rem;color:var(--muted)}
+.place-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.care-more{font-size:.82rem}
+.doubt{margin:0 22px 14px;padding:11px 14px;border-radius:8px;background:color-mix(in srgb,var(--cap-drug) 14%,var(--card));border:1px solid color-mix(in srgb,var(--cap-drug) 45%,transparent);font-size:.9rem}
+.doubt strong{display:block;font-family:var(--f-mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;color:var(--ink)}
+.ev-list{margin:8px 0 0;padding-left:1.1em;display:grid;gap:4px}
+.ev-list a{font-size:.8rem;white-space:nowrap}
+.ev-note{margin:8px 0 0;font-size:.78rem;color:var(--muted)}
+.tokens{position:fixed;z-index:46;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow-y:auto;display:flex;flex-direction:column;gap:10px;background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:16px;padding:18px;box-shadow:0 30px 70px -20px rgba(10,25,40,.5)}
+.tokens textarea{width:100%;font-family:var(--f-mono);font-size:.8rem;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);padding:10px;resize:vertical}
+.tok-file{font-size:.88rem;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.tok-status{margin:0;font-size:.85rem;color:var(--muted);min-height:1.2em}
+.tok-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tok-save{border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:8px;padding:7px 14px;font:600 .88rem var(--f-body);cursor:pointer}
+.tok-names{font-size:.8rem;color:var(--muted)}
+.tok-names summary{cursor:pointer}
+.tok-names p{margin:6px 0 0;overflow-wrap:anywhere}
+
+/* ===== Results as connected 3D blocks ===== */
+.report{--edge-mix:62%;background:transparent;border:0;border-radius:0;overflow:visible;display:grid;gap:34px;padding:0 10px 10px 0}
+.report > .loading,.report > .err{background:var(--card);border:1px solid var(--rule);border-radius:14px}
+.report-head,.sec,.report > .alert,.report > .doubt,.report > .more,.report > .evidence,.report > .followup{
+  --blk:var(--accent);
+  --edge:color-mix(in srgb,var(--blk) var(--edge-mix),var(--ink));
+  position:relative;margin:0;background:linear-gradient(180deg,color-mix(in srgb,var(--blk) 10%,var(--card)) 0,var(--card) 56px);
+  border:1.5px solid var(--edge);border-radius:14px;
+  box-shadow:1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),16px 20px 30px -16px rgba(10,25,40,.35);
+  transition:transform .18s ease,box-shadow .18s ease;animation:blockIn .5s cubic-bezier(.2,.8,.2,1) both}
+.report-head:hover,.sec:hover,.report > .followup:hover{transform:translate(-2px,-2px);box-shadow:1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),7px 7px 0 var(--edge),8px 8px 0 var(--edge),20px 26px 34px -16px rgba(10,25,40,.4)}
+.report-head{padding:22px 24px 20px;border-bottom:1.5px solid var(--edge)}
+/* connectors: a peg from the block above, with a joint where it meets */
+.sec::before,.report > .alert::before,.report > .doubt::before,.report > .more::before,.report > .evidence::before,.report > .followup::before,.sections::before{
+  content:"";position:absolute;left:var(--cx,46px);top:-37px;width:8px;height:36px;border-radius:4px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--ink) 14%,var(--rule)),var(--rule) 45%,color-mix(in srgb,var(--ink) 22%,var(--rule)))}
+.sections::before{display:none}
+.sec::after,.report > .alert::after,.report > .doubt::after,.report > .more::after,.report > .evidence::after,.report > .followup::after{
+  content:"";position:absolute;left:calc(var(--cx,46px) - 4px);top:-8px;width:16px;height:16px;border-radius:50%;background:var(--card);border:3px solid var(--edge)}
+.sections{padding:0;display:grid;gap:34px;position:relative}
+.sec{padding:20px 22px 18px}
+.sec:first-child{margin-top:0}
+.sec h3{color:color-mix(in srgb,var(--blk) 80%,var(--ink));display:flex;align-items:center;gap:8px}
+.sec h3::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--blk);box-shadow:2px 2px 0 color-mix(in srgb,var(--blk) 60%,var(--ink))}
+/* one straight column: every block shares the same left and right edge */
+.report > *,.sections > *{width:auto;margin-left:0;margin-right:0}
+.report > .alert{--blk:var(--warn);background:var(--warn-soft)}
+.report > .doubt{--blk:var(--cap-drug);padding:14px 18px}
+.report > .more{--blk:var(--ink);padding:14px 18px}
+.report > .evidence{--blk:var(--accent);padding:12px 18px;font-size:.88rem}
+.report > .followup{--blk:var(--accent);padding:16px 20px 20px;border-top:1.5px solid var(--edge)}
+.disclaimer{border-top:0;padding:0 4px}
+.routes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.route{font:600 .84rem var(--f-body);padding:4px 10px;border-radius:8px;border:1.5px solid var(--edge);background:color-mix(in srgb,var(--blk) 12%,var(--card));box-shadow:2px 2px 0 var(--edge)}
+@keyframes blockIn{from{transform:translateY(14px) scale(.985)}to{transform:none}}
+.report > :nth-child(2){animation-delay:.05s}.report > :nth-child(3){animation-delay:.1s}.report > :nth-child(4){animation-delay:.15s}
+.sections > :nth-child(2){animation-delay:.12s}.sections > :nth-child(3){animation-delay:.18s}.sections > :nth-child(4){animation-delay:.24s}.sections > :nth-child(5){animation-delay:.3s}.sections > :nth-child(n+6){animation-delay:.36s}
+@media (prefers-reduced-motion:reduce){.report-head,.sec,.report > *{animation:none!important;transition:none!important}}
+/* ===== Translate ===== */
+.tr-wrap{position:fixed;z-index:44;top:calc(12px + env(safe-area-inset-top,0px));left:max(12px,env(safe-area-inset-left,0px))}
+[dir="rtl"] .tr-wrap{left:auto;right:max(12px,env(safe-area-inset-right,0px))}
+.tr-btn{display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 13px 6px 10px;font:600 .85rem var(--f-body);cursor:pointer;box-shadow:2px 2px 0 var(--ink)}
+.tr-btn:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.tr-cur:empty{display:none}
+.tr-cur{font-weight:500;color:var(--accent);max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-menu{position:absolute;top:calc(100% + 8px);left:0;width:min(300px,calc(100vw - 24px));background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:14px;padding:10px;box-shadow:0 20px 44px -16px rgba(10,25,40,.45);display:grid;gap:8px}
+[dir="rtl"] .tr-menu{left:auto;right:0}
+.tr-menu input{border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:8px 10px;font:inherit;font-size:.9rem}
+.tr-list{list-style:none;margin:0;padding:0;max-height:min(52vh,380px);overflow-y:auto;display:grid}
+.tr-list li{display:flex;justify-content:space-between;gap:10px;padding:7px 9px;border-radius:8px;cursor:pointer;font-size:.92rem}
+.tr-list li:hover,.tr-list li:focus-visible,.tr-list li.on{background:var(--accent-soft)}
+.tr-name{color:var(--muted);font-size:.8rem;white-space:nowrap}
+.tr-foot{margin:0;font-size:.74rem;color:var(--muted)}
+.tr-status{margin-top:6px;font-size:.75rem;color:var(--muted);background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:4px 9px;max-width:260px}
+@media (max-width:520px){.tr-btn{padding:5px 11px 5px 9px;font-size:.8rem}}
+
+/* ===== Enlarged block ===== */
+.report-head,.sec{cursor:zoom-in}
+.report-head:focus-visible,.sec:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+.zoom-holder{border:2px dashed var(--rule);border-radius:14px;background:color-mix(in srgb,var(--rule) 25%,transparent)}
+html.zoom-open{overflow:hidden}
+.zoom-layer{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:calc(24px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:color-mix(in srgb,var(--paper) 55%,rgba(8,18,28,.55));backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);cursor:zoom-out}
+.zoom-stage{width:min(880px,100%);max-height:100%;display:flex;cursor:default}
+.report .zoomed{width:100%;max-height:calc(100vh - 64px);overflow:auto;cursor:default;font-size:1.08em;padding:28px 30px 26px!important;transform:none!important;
+  box-shadow:1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),7px 7px 0 var(--edge),8px 8px 0 var(--edge),9px 9px 0 var(--edge),10px 10px 0 var(--edge),30px 40px 70px -20px rgba(5,15,25,.55)!important}
+.report .zoomed::before,.report .zoomed::after{display:none}
+.report .zoomed h3{font-size:.85rem}
+.report .zoomed.report-head h2{font-size:clamp(1.8rem,4vw,2.6rem)}
+.zoom-x{position:absolute;top:10px;right:12px;width:34px;height:34px;border-radius:50%;border:1.5px solid var(--edge);background:var(--card);color:var(--ink);font-size:1.3rem;line-height:1;cursor:pointer}
+[dir="rtl"] .zoom-x{right:auto;left:12px}
+
+/* ===== Card system: one look, one type scheme =====
+   Card title  = display face, 1.3em
+   Subheading  = body face, 1em semibold
+   Body        = body face, 1em regular, 1.6 line height
+   Small       = body face, .875em (notes, table headers, labels) */
+.report{--card-edge:color-mix(in srgb,var(--ink) 80%,var(--card))}
+.report-head,.sec,.report > .alert,.report > .doubt,.report > .more,.report > .evidence,.report > .followup{
+  --edge:var(--card-edge);background:var(--card);border:1.5px solid var(--edge);border-radius:16px;padding:22px 24px;
+  font-family:var(--f-body);font-size:1rem;line-height:1.6;color:var(--ink)}
+.report > .alert,.report > .doubt{background:var(--card)}
+.report-head{gap:10px}
+.report .report-head h2{font-family:var(--f-display);font-size:2em;font-weight:650;line-height:1.15;letter-spacing:-.01em;margin:0}
+.report .report-head .summary{font-size:1em;margin:0}
+.report .meta,.report .kind,.report .lvl{font-family:var(--f-body);font-size:.875em;font-weight:600;letter-spacing:.02em;text-transform:none;color:var(--muted)}
+.report .kind{color:var(--ink)}
+.report .aka{font-size:.875em}
+/* card titles */
+.report .sec h3,.report details.evidence summary,.report .doubt strong,.report .alert strong{
+  font-family:var(--f-display);font-size:1.3em;font-weight:650;line-height:1.25;letter-spacing:0;text-transform:none;color:var(--ink);margin:0 0 12px;display:flex;align-items:center;gap:10px}
+.report details.evidence summary{margin:0;cursor:pointer;list-style:none}
+.report details.evidence[open] summary{margin-bottom:12px}
+.report .sec h3::before,.report details.evidence summary::before,.report .doubt strong::before,.report .alert strong::before{
+  content:"";flex:none;width:12px;height:12px;border-radius:3px;background:var(--blk);box-shadow:2px 2px 0 var(--card-edge)}
+.report .alert strong::before{background:var(--warn)}.report .doubt strong::before{background:var(--cap-drug)}
+.report .conf{font-family:var(--f-body);font-size:.68em;font-weight:600;border-radius:999px;padding:2px 10px;margin-left:auto}
+/* subheadings */
+.report .sec h4,.report .remedy-name,.report .followup > .meta,.report .fac-head b{font-family:var(--f-body);font-size:1em;font-weight:600;color:var(--ink);text-transform:none;letter-spacing:0;margin:0 0 6px}
+/* body */
+.report .sec p,.report .sec li,.report .remedy p,.report .tbl td,.report .doubt,.report .alert,.report .ev-list li,.report .allergen,.report .fac-head,.report .linkish{font-size:1em;line-height:1.6}
+.report .sec p{margin:0 0 10px}.report .sec p:last-child{margin-bottom:0}
+.report .sec ul{gap:6px}
+/* small */
+.report .note,.report .no-allergen,.report .ev-note,.report .tbl th,.report .route,.report .curbar,.report .field label,.report .doubt-more{font-size:.875em}
+.report .tbl table{font-size:1em}
+.report .tbl th{font-family:var(--f-body);font-weight:600;text-transform:none;letter-spacing:0}
+.report .field label{font-family:var(--f-body);text-transform:none;letter-spacing:0;font-weight:600}
+/* inner pieces share the same quiet treatment */
+.report .tbl,.report .remedy,.report .factors{border:1px solid var(--rule);border-radius:12px;background:var(--card)}
+.report .remedy{padding:14px 16px;gap:8px}
+.report .factors{background:var(--paper);border-color:var(--rule)}
+.report .allergen{padding:10px 12px;border-radius:10px}
+.report .route{border:1px solid var(--rule);background:var(--paper);box-shadow:none;border-radius:999px;padding:4px 12px;font-weight:600}
+.report .chip{font-size:.875em}
+.disclaimer{font-size:.875rem}
+.report .zoomed{font-size:1.12rem}
+/* ===== Home emergency button ===== */
+.sos-fab{position:fixed;z-index:43;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:10px;text-decoration:none;background:var(--warn);color:var(--accent-ink);border-radius:999px;padding:10px 18px 10px 12px;box-shadow:0 3px 0 color-mix(in srgb,var(--warn) 60%,var(--ink)),0 14px 30px -10px rgba(120,20,10,.45);transition:transform .15s ease}
+.sos-fab:hover{transform:translateY(-2px)}
+.sos-fab:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.sos-fab-icon{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--accent-ink) 22%,transparent);font-size:1.15rem}
+.sos-fab-text{display:grid;line-height:1.15}
+.sos-fab-text b{font-size:1rem;font-variant-numeric:tabular-nums}
+.sos-fab-text small{font-size:.75rem;opacity:.9}
+@media (prefers-reduced-motion:no-preference){.sos-fab-icon{animation:sosPulse 2.4s ease-out infinite}}
+@keyframes sosPulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--accent-ink) 45%,transparent)}70%{box-shadow:0 0 0 10px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (min-width:861px){body.has-results .sos-fab{display:none}}
+[dir="rtl"] .sos-fab{left:auto;right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ===== Home: Care near you under the search bar ===== */
+.home-care{margin-top:6px}
+body.has-results .home-care{display:none}
+.home-care .care{--card-edge:color-mix(in srgb,var(--ink) 80%,var(--card));margin:0;border:1.5px solid var(--card-edge);border-radius:16px;padding:20px 22px;background:var(--card);
+  box-shadow:1px 1px 0 var(--card-edge),2px 2px 0 var(--card-edge),3px 3px 0 var(--card-edge),4px 4px 0 var(--card-edge),5px 5px 0 var(--card-edge),6px 6px 0 var(--card-edge),16px 20px 30px -16px rgba(10,25,40,.3);
+  grid-template-columns:minmax(220px,280px) minmax(0,1fr);grid-template-areas:"h h" "sos form" "sos list";column-gap:22px;row-gap:12px;align-items:start}
+.home-care .care > h4{grid-area:h;margin:0;font-family:var(--f-display);font-size:1.3rem;font-weight:650;text-transform:none;letter-spacing:0}
+.home-care .sos-box{grid-area:sos}.home-care .care-form{grid-area:form}.home-care .care-list{grid-area:list;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.home-care .care-list > .care-note,.home-care .care-list > a{grid-column:1/-1}
+@media (max-width:700px){.home-care .care{grid-template-columns:minmax(0,1fr);grid-template-areas:"h" "sos" "form" "list"}}
+.sos-fab{display:none!important}
+
+/* ===== Neon importance colour code =====
+   Critical = neon red · High = neon orange · Medium = neon yellow · Info = neon cyan */
+:root{--neon-critical:#ff1f5a;--neon-high:#ff7a00;--neon-medium:#e6c200;--neon-info:#00b8e6}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--neon-critical:#ff3d71;--neon-high:#ff9f1c;--neon-medium:#ffe600;--neon-info:#22e6ff}}
+:root[data-theme="dark"]{--neon-critical:#ff3d71;--neon-high:#ff9f1c;--neon-medium:#ffe600;--neon-info:#22e6ff}
+.report [data-imp="critical"],.imp-key[data-imp="critical"]{--neon:var(--neon-critical)}
+.report [data-imp="high"],.imp-key[data-imp="high"]{--neon:var(--neon-high)}
+.report [data-imp="medium"],.imp-key[data-imp="medium"]{--neon:var(--neon-medium)}
+.report [data-imp="info"],.imp-key[data-imp="info"]{--neon:var(--neon-info)}
+.report > .more,.report > .evidence,.report > .followup{--neon:var(--neon-info)}
+.report .report-head,.report .sec,.report > .alert,.report > .doubt,.report > .more,.report > .evidence,.report > .followup{
+  --edge:color-mix(in srgb,var(--neon) 70%,#12081f);
+  border-color:var(--neon);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--neon) 35%,transparent),1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),0 0 22px -4px color-mix(in srgb,var(--neon) 70%,transparent),16px 20px 30px -16px rgba(10,25,40,.3)}
+.report .report-head:hover,.report .sec:hover,.report > .followup:hover{
+  box-shadow:0 0 0 1px var(--neon),1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),7px 7px 0 var(--edge),8px 8px 0 var(--edge),0 0 34px -2px color-mix(in srgb,var(--neon) 80%,transparent),20px 26px 34px -16px rgba(10,25,40,.35)}
+.report .zoomed{box-shadow:0 0 0 1px var(--neon),1px 1px 0 var(--edge),2px 2px 0 var(--edge),3px 3px 0 var(--edge),4px 4px 0 var(--edge),5px 5px 0 var(--edge),6px 6px 0 var(--edge),7px 7px 0 var(--edge),8px 8px 0 var(--edge),9px 9px 0 var(--edge),10px 10px 0 var(--edge),0 0 60px -4px color-mix(in srgb,var(--neon) 75%,transparent),30px 40px 70px -20px rgba(5,15,25,.55)!important}
+.report .sec h3::before,.report details.evidence summary::before,.report .doubt strong::before,.report .alert strong::before{background:var(--neon)!important;box-shadow:0 0 10px var(--neon)}
+.report .sec::after,.report > .alert::after,.report > .doubt::after,.report > .more::after,.report > .evidence::after,.report > .followup::after{border-color:var(--neon);box-shadow:0 0 10px -1px var(--neon)}
+.report .zoomed .zoom-x{border-color:var(--neon)}
+.h3-text{min-width:0}
+.imp-tag{margin-left:auto;flex:none;font-family:var(--f-body);font-size:.62em;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);padding:3px 10px;border-radius:999px;border:1.5px solid var(--neon);background:color-mix(in srgb,var(--neon) 14%,var(--card));box-shadow:0 0 10px -3px var(--neon)}
+.report .zoomed .imp-tag{margin-right:40px}
+.imp-legend{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:.875em;color:var(--muted);padding-top:4px}
+.imp-legend-label{font-weight:600;color:var(--ink)}
+.imp-key{display:inline-flex;align-items:center;gap:6px}
+.imp-key i{width:12px;height:12px;border-radius:3px;background:var(--neon);box-shadow:0 0 8px var(--neon)}
+
+/* ===== Extras below the card line-up: not cards, no connectors ===== */
+.report .report > .more,.report > .more,.report > .evidence,.report > .followup{
+  background:none!important;border:0!important;box-shadow:none!important;border-radius:0!important;animation:none!important;transform:none!important;padding:0 2px!important}
+.report > .more::before,.report > .more::after,.report > .evidence::before,.report > .evidence::after,.report > .followup::before,.report > .followup::after{display:none!important}
+.report > .more{margin-top:6px;padding-top:22px!important;border-top:1px solid var(--rule)!important}
+.report > .evidence summary::before{box-shadow:none!important;background:var(--muted)!important}
+.report > .evidence summary{font-size:1.1em!important}
+.report > .followup{gap:10px}
+.report > .more,.report > .evidence,.report > .followup{cursor:auto}
+
+.map-link{display:flex;align-items:center;gap:8px;text-decoration:none;font-weight:600;font-size:.9rem;color:var(--ink);border:1.5px solid var(--ink);border-radius:10px;padding:9px 12px;background:var(--card);box-shadow:2px 2px 0 var(--ink)}
+.map-link:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.home-care .map-link{grid-area:map}
+.home-care .care{grid-template-areas:"h h" "sos form" "sos map" "sos list"}
+@media (max-width:700px){.home-care .care{grid-template-areas:"h" "sos" "form" "map" "list"}}
+
+/* ===== Report upload ===== */
+form.search button.up-btn{align-self:center;display:inline-flex;align-items:center;gap:6px;background:transparent;color:var(--ink);border:1.5px solid var(--rule);border-radius:10px;padding:7px 12px;margin-right:10px;font:600 .9rem var(--f-body)}
+form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-soft);color:var(--ink)}
+@media (max-width:520px){form.search button.up-btn{padding:7px 8px;margin-right:6px}.up-label{display:none}}
+.guide-layer{position:fixed;inset:0;z-index:70;display:grid;place-items:center;padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));background:color-mix(in srgb,var(--paper) 50%,rgba(8,18,28,.6));backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+.guide{width:min(640px,100%);max-height:100%;overflow-y:auto;background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:18px;padding:22px 24px;display:grid;gap:14px;box-shadow:6px 6px 0 var(--ink),0 30px 70px -20px rgba(5,15,25,.5)}
+.guide-title{margin:0;font-family:var(--f-display);font-size:1.5rem;font-weight:650}
+.guide-lede{margin:0}
+.guide-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.guide-cols{grid-template-columns:1fr}}
+.guide-do,.guide-dont{border-radius:12px;padding:12px 14px;border:1.5px solid}
+.guide-do{border-color:var(--neon-normal);background:color-mix(in srgb,var(--neon-normal) 10%,var(--card))}
+.guide-dont{border-color:var(--neon-critical);background:color-mix(in srgb,var(--neon-critical) 8%,var(--card))}
+.guide h3{margin:0 0 6px;font-size:1rem}
+.guide ul{margin:0;padding-left:1.1em;display:grid;gap:5px;font-size:.92rem}
+.guide-privacy{margin:0;font-size:.85rem;color:var(--muted)}
+.guide-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding-top:4px}
+.guide-skip{display:inline-flex;align-items:center;gap:8px;font-size:.92rem;cursor:pointer}
+.guide-skip input{width:18px;height:18px;accent-color:var(--ink)}
+.guide-ok{border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:10px;padding:10px 20px;font:600 1rem var(--f-body);cursor:pointer;box-shadow:3px 3px 0 color-mix(in srgb,var(--ink) 55%,var(--card))}
+/* normal = neon green */
+:root{--neon-normal:#00b85c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--neon-normal:#39ff88}}
+:root[data-theme="dark"]{--neon-normal:#39ff88}
+.report [data-imp="normal"],.imp-key[data-imp="normal"]{--neon:var(--neon-normal)}
+.rep-counts{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.875em;font-weight:600;padding-top:4px}
+.lab-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px 26px}
+.lab-grid .sec::before,.lab-grid .sec::after{display:none!important}
+.lab-value{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 6px;margin-bottom:4px}
+.lab-value b{font-family:var(--f-display);font-size:1.9em;line-height:1.1;font-variant-numeric:tabular-nums}
+.lab-value span{color:var(--muted);font-weight:600}
+.lab-unsure{flex-basis:100%;font-size:.8em;color:var(--warn)!important}
+.lab-range{font-size:.875em;color:var(--muted);margin-bottom:8px}
+.gauge{margin:6px 0 14px}
+.g-track{position:relative;height:10px;border-radius:999px;background:color-mix(in srgb,var(--neon-critical) 22%,var(--paper))}
+.g-ok{position:absolute;top:0;bottom:0;border-radius:999px;background:color-mix(in srgb,var(--neon-normal) 55%,var(--paper))}
+.g-mark{position:absolute;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:var(--card);border:3px solid var(--neon);box-shadow:0 0 10px var(--neon)}
+.g-labels{position:relative;height:16px;font-size:.72em;color:var(--muted);font-variant-numeric:tabular-nums}
+.g-labels span{position:absolute;transform:translateX(-50%);top:2px}
+.dx-list{display:grid;gap:12px}
+.dx{border:1px solid var(--rule);border-radius:12px;padding:12px 14px;display:grid;gap:4px}
+.dx p{margin:0!important}
+.dx-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.dx-name{font-weight:700}
+.dx-like{font-size:.8em;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+
+@media (max-width:520px){.hero{padding-top:clamp(64px,16vh,140px)}body.has-results .hero{padding-top:56px}}
+
+/* ===== Care near you: compact hospital list ===== */
+.care-tools{display:flex;flex-wrap:wrap;gap:8px 12px}
+.care-tools[hidden]{display:none}
+.care-tool{display:flex;align-items:center;gap:6px;font-size:.78rem;font-weight:600;color:var(--muted)}
+.care-tool select{font:600 .8rem var(--f-body);color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:8px;padding:5px 6px;max-width:100%}
+.place{gap:6px;padding:12px 13px}
+.place-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.place-name{font-size:.98rem;font-weight:700}
+.place-km{flex:none;font-size:.8rem;font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.place-area{font-size:.85rem;color:var(--ink)!important}
+.place-phone{font-size:.85rem;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:baseline}
+.place-phone.muted{color:var(--muted);font-size:.78rem}
+.ph-label{color:var(--muted);font-weight:600}
+.ph-num{font-weight:700;font-variant-numeric:tabular-nums;user-select:all}
+.place-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.pa{display:inline-flex;align-items:center;gap:5px;text-decoration:none;font:700 .82rem var(--f-body);border-radius:8px;padding:6px 11px;border:1.5px solid var(--ink)}
+.pa-dir{background:var(--ink);color:var(--paper)}
+.pa-call{background:var(--warn);border-color:var(--warn);color:var(--accent-ink)}
+.place-actions .mini{padding:6px 10px;font-weight:600}
+.home-care .care{grid-template-areas:"h h" "sos form" "sos map" "sos tools" "sos list"}
+.home-care .care-tools{grid-area:tools}
+@media (max-width:700px){.home-care .care{grid-template-areas:"h" "sos" "form" "map" "tools" "list"}}
+
+/* ===== Clear history ===== */
+.clear-hist{font:600 .72rem var(--f-body);letter-spacing:.02em;text-transform:none;color:var(--warn);background:transparent;border:1px solid color-mix(in srgb,var(--warn) 45%,transparent);border-radius:999px;padding:3px 10px;cursor:pointer}
+.clear-hist:hover{background:var(--warn-soft)}
+.hist-cleared{padding:14px 12px;font-size:.92rem;color:var(--muted)}
+/* ===== Collapsible Care near you ===== */
+.care-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.care-toggle{flex:1;display:flex;align-items:center;justify-content:space-between;gap:10px;background:none;border:0;padding:4px 0;margin:0;color:var(--ink);cursor:pointer;text-align:left}
+.care-title{font-family:var(--f-display);font-size:1.15rem;font-weight:650}
+.rail .care-title{font-family:var(--f-mono);font-size:.72rem;font-weight:500;letter-spacing:.08em;text-transform:uppercase}
+.care-chev{width:28px;height:28px;flex:none;border-radius:50%;border:1.5px solid var(--rule);position:relative;transition:transform .2s ease}
+.care-chev::before{content:"";position:absolute;left:50%;top:50%;width:8px;height:8px;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:translate(-50%,-70%) rotate(45deg)}
+.care-toggle[aria-expanded="false"] .care-chev{transform:rotate(-90deg)}
+.care-toggle:hover .care-chev{border-color:var(--ink)}
+.care-quickcall{flex:none;text-decoration:none;font:700 .82rem var(--f-body);color:var(--accent-ink);background:var(--warn);border-radius:999px;padding:5px 11px}
+.care:not(.is-collapsed) .care-quickcall{display:none}
+.care-body{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.care-body > *{min-width:0}
+.care-body[hidden]{display:none}
+.care.is-collapsed{gap:0}
+/* home layout moves onto the body */
+.home-care .care{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:none;row-gap:12px}
+.home-care .care-title{font-size:1.3rem}
+.home-care .care-body{grid-template-columns:minmax(220px,280px) minmax(0,1fr);grid-template-areas:"sos form" "sos map" "sos tools" "sos list";column-gap:22px;row-gap:12px;align-items:start}
+@media (max-width:700px){.home-care .care-body{grid-template-columns:minmax(0,1fr);grid-template-areas:"sos" "form" "map" "tools" "list"}}
+.home-care .care.is-collapsed{padding-block:14px}
+
+.mq-toast{position:fixed;z-index:80;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));max-width:min(460px,calc(100vw - 32px));background:var(--ink);color:var(--paper);font:600 .9rem var(--f-body);padding:10px 16px;border-radius:12px;box-shadow:0 14px 34px -12px rgba(5,15,25,.5)}
+</style>
+
+<div class="wrap">
+  <section class="hero">
+    <div class="brand no-tr" translate="no"><div id="homeLink" class="logo" role="link" tabindex="0" title="MedQuery home. Select the name to see what MedQuery is." aria-label="MedQuery home"><h1>Med<span>Query</span></h1></div></div>
+    <div class="searchbox">
+      <form class="search" id="searchForm" role="search">
+        <svg class="lens" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+        <input id="q" name="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search a disease, test, medicine, or ask a question" aria-label="Search MedQuery" role="combobox" aria-expanded="false" aria-controls="suggList" aria-autocomplete="list">
+        <button type="button" id="upBtn" class="up-btn" aria-label="Upload a medical report (photo or PDF)" title="Upload a medical report">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 18v-6"/><path d="m9.5 14.5 2.5-2.5 2.5 2.5"/></svg>
+          <span class="up-label">Report</span>
+        </button>
+        <button type="submit" id="go">Search</button>
+      </form>
+      <div class="sugg" id="sugg" hidden>
+        <div class="sugg-head"><span id="suggTitle">Suggestions</span><span id="suggHint">↑ ↓ to move · Enter to search</span></div>
+        <ul id="suggList" role="listbox" aria-label="Suggestions"></ul>
+        <div id="aiBlock"></div>
+      </div>
+    </div>
+    <div id="homeCare" class="home-care"></div>
+  </section>
+
+  <div id="results" hidden>
+    <main class="grid">
+      <article class="report" id="report" aria-live="polite"></article>
+      <aside class="rail">
+        <div class="panel care" id="care"></div>
+        <div class="panel">
+          <h4>Verify at the source</h4>
+          <p id="srcNote"></p>
+          <ul class="srcs" id="srcs"></ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === "class") n.className = v; else if (k === "text") n.textContent = v;
+      else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v);
+    }
+    for (const k of kids) if (k != null) n.append(k);
+    return n;
+  };
+  const str = v => (v == null ? "" : String(v)).trim();
+  const arr = v => Array.isArray(v) ? v : [];
+
+  const KINDS = {
+    disease: { label: "Disease", color: "var(--cap-disease)" },
+    test:    { label: "Test", color: "var(--cap-test)" },
+    drug:    { label: "Medicine", color: "var(--cap-drug)" },
+    question:{ label: "Question", color: "var(--cap-q)" }
+  };
+  let mode = "auto", sample = null, sampleChecked = false, ctl = null, current = null;
+
+  const SOURCES = [
+    { name: "Europe PMC (open access only)", tag: "free full text", url: q => "https://europepmc.org/search?query=(" + q + ")%20AND%20(OPEN_ACCESS%3Ay)" },
+    { name: "PubMed (free full text)", tag: "research", url: q => "https://pubmed.ncbi.nlm.nih.gov/?term=" + q + "&filter=simsearch2.ffrft" },
+    { name: "Cochrane reviews (via PubMed)", tag: "evidence", url: q => "https://pubmed.ncbi.nlm.nih.gov/?term=(" + q + ")%20AND%20%22Cochrane%20Database%20Syst%20Rev%22%5Bjournal%5D" },
+    { name: "MedlinePlus (NIH)", tag: "patient", url: q => "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&query=" + q },
+    { name: "NCBI Bookshelf / StatPearls", tag: "clinical", url: q => "https://www.ncbi.nlm.nih.gov/books/?term=" + q },
+    { name: "DailyMed (FDA labels)", tag: "drugs", url: q => "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=" + q },
+    { name: "CDC", tag: "public health", url: q => "https://search.cdc.gov/search/?query=" + q },
+    { name: "WHO", tag: "global", url: q => "https://www.who.int/home/search-results?indexCatalogue=genericsearchindex1&searchQuery=" + q },
+    { name: "PLOS Medicine", tag: "open journal", url: q => "https://journals.plos.org/plosmedicine/search?q=" + q }
+  ];
+  function renderSources(term) {
+    const q = encodeURIComponent(term);
+    $("#srcNote").textContent = "Open “" + term + "” in free, open-access sources.";
+    const ul = $("#srcs"); ul.replaceChildren();
+    for (const s of SOURCES) ul.append(el("li", {}, el("a", { href: s.url(q), target: "_blank", rel: "noopener" }, s.name, el("span", { text: s.tag + " ↗" }))));
+  }
+
+  // ---------- Currency (approximate conversion of USD estimates; INR uses India-specific prices) ----------
+  const FX = { USD: [1, "$"], INR: [88, "₹"], EUR: [0.86, "€"], GBP: [0.75, "£"], JPY: [150, "¥"], CNY: [7.1, "CN¥"], AUD: [1.52, "A$"], CAD: [1.38, "C$"], CHF: [0.8, "CHF "], SGD: [1.29, "S$"], AED: [3.67, "AED "], SAR: [3.75, "SAR "], BDT: [122, "৳"], PKR: [282, "Rs "], NPR: [141, "NPR "], LKR: [300, "LKR "], NGN: [1500, "₦"], KES: [129, "KSh "], ZAR: [17.6, "R "], BRL: [5.4, "R$"], MXN: [18.5, "MX$"], RUB: [80, "₽"], IDR: [16300, "Rp "], PHP: [57, "₱"] };
+  const TZCUR = { "Asia/Calcutta": "INR", "Asia/Kolkata": "INR", "Europe/London": "GBP", "Asia/Tokyo": "JPY", "Asia/Shanghai": "CNY", "Australia/Sydney": "AUD", "Asia/Dubai": "AED", "Asia/Singapore": "SGD", "Asia/Dhaka": "BDT", "Asia/Karachi": "PKR", "Asia/Kathmandu": "NPR", "Africa/Lagos": "NGN", "Africa/Nairobi": "KES", "Africa/Johannesburg": "ZAR" };
+  let currency = (() => { try { const c = localStorage.getItem("medquery.cur"); if (c && FX[c]) return c; } catch {} try { const tz = Intl.DateTimeFormat().resolvedOptions().timeZone; if (TZCUR[tz]) return TZCUR[tz]; if (/^Europe\//.test(tz)) return "EUR"; } catch {} return "USD"; })();
+  const num = v => { const n = Number(v); return isFinite(n) && n >= 0 ? n : null; };
+  function fmtMoney(lo, hi) {
+    const [rate, sym] = FX[currency];
+    const f = n => { const v = n * rate; const r = v >= 1000 ? Math.round(v / 10) * 10 : v >= 100 ? Math.round(v) : Math.round(v * 10) / 10; return sym + r.toLocaleString(); };
+    if (lo == null && hi == null) return "—";
+    if (hi == null || hi === lo) return f(lo ?? hi);
+    return f(lo ?? 0) + " – " + f(hi);
+  }
+  function costText(t) {
+    if (currency === "INR" && arr(t.inr).length) { const lo = num(t.inr[0]), hi = num(t.inr[1]); if (lo != null || hi != null) return fmtMoney((lo ?? hi) / 88, (hi ?? lo) / 88); }
+    return fmtMoney(num(arr(t.usd)[0]), num(arr(t.usd)[1]));
+  }
+
+  // ---------- Small rendering helpers ----------
+  const TONE = t => /symptom|cause|side effect/i.test(t) ? "var(--cap-disease)" : /test|element|abnormal|what it checks/i.test(t) ? "var(--cap-test)" : /treatment|how it's|used for|interaction|what it is/i.test(t) ? "var(--cap-drug)" : /remed|prevent/i.test(t) ? "var(--cap-q)" : /careful|caution/i.test(t) ? "var(--warn)" : "var(--accent)";
+  // Importance levels for the neon colour code
+  const IMP_LABEL = { critical: "Critical", high: "High", medium: "Medium", info: "Info" };
+  const IMP = t => /careful|caution|warning|emergency|danger|serious|red flag/i.test(t) ? "critical"
+    : /treatment|how it's|tests to confirm|elements tested|abnormal|interaction|side effect|dosing|complication/i.test(t) ? "high"
+    : /symptom|cause|prevent|remed|used for|before the test|risk|monitor|pregnan/i.test(t) ? "medium" : "info";
+  const impTag = lvl => el("span", { class: "imp-tag", text: IMP_LABEL[lvl] });
+  const sec = (title, ...kids) => { const lvl = IMP(title); return el("section", { class: "sec", tabindex: "0", "data-imp": lvl, style: "--blk:" + TONE(title) }, el("h3", {}, el("span", { class: "h3-text", text: title }), impTag(lvl)), ...kids); };
+  const blist = (items, cls) => { const ul = el("ul", cls ? { class: cls } : {}); arr(items).map(str).filter(Boolean).forEach(x => ul.append(el("li", { text: x }))); return ul; };
+  const has = a => arr(a).some(x => (typeof x === "string" ? str(x) : x));
+  function table(cols, rows) {
+    const t = el("table"), tr = el("tr");
+    cols.forEach(c => tr.append(el("th", { scope: "col", text: c })));
+    t.append(el("thead", {}, tr));
+    const tb = el("tbody");
+    rows.forEach(r => { const rr = el("tr"); r.forEach(c => rr.append(c instanceof Node ? el("td", {}, c) : el("td", { text: str(c) }))); tb.append(rr); });
+    t.append(tb);
+    return el("div", { class: "tbl" }, t);
+  }
+
+  // ---------- Report rendering ----------
+  function renderReport(d, q, detail) {
+    const k = KINDS[d.kind] || KINDS.question;
+    const r = $("#report"); r.replaceChildren();
+    r.append(el("div", { class: "report-head", tabindex: "0", "data-imp": str(d.urgent) ? "critical" : "info", style: "--blk:" + k.color },
+      el("div", { class: "meta" },
+        el("span", { class: "kind" }, el("i", { class: "cap", style: "background:" + k.color }), k.label),
+        el("span", { class: "lvl", text: detail ? "Detailed" : "Quick answer" })
+      ),
+      el("h2", { text: str(d.title) || "Answer" }),
+      has(d.aka) ? el("div", { class: "aka", text: "Also called: " + arr(d.aka).map(str).join(", ") }) : null,
+      el("p", { class: "summary", text: str(d.summary) }),
+      el("div", { class: "imp-legend", "aria-label": "Colour code by importance" }, el("span", { class: "imp-legend-label", text: "Importance" }),
+        ...["critical", "high", "medium", "info"].map(l => el("span", { class: "imp-key", "data-imp": l }, el("i", { "aria-hidden": "true" }), IMP_LABEL[l])))
+    ));
+    if (str(d.urgent)) r.append(el("div", { class: "alert", role: "note", "data-imp": "critical" }, el("strong", {}, el("span", { class: "h3-text", text: "Get medical help now if" }), impTag("critical")), str(d.urgent)));
+
+    const body = el("div", { class: "sections" });
+    if (d.kind === "disease") renderDisease(d, body);
+    else if (d.kind === "test") renderTest(d, body);
+    else if (d.kind === "drug") renderDrug(d, body);
+    else renderQuestion(d, body);
+    for (const x of arr(d.details)) if (str(x.heading) && (str(x.body) || has(x.bullets))) body.append(sec(str(x.heading), str(x.body) ? el("p", { text: str(x.body) }) : null, has(x.bullets) ? blist(x.bullets) : null));
+    r.append(body);
+
+    // detail toggle
+    r.append(el("div", { class: "more" },
+      detail
+        ? el("button", { class: "more-btn ghost", type: "button", text: "Back to the quick answer", onclick: () => run(q, { detail: false, keepMode: true }) })
+        : el("button", { class: "more-btn", type: "button", onclick: () => run(q, { detail: true, keepMode: true }) }, "Show the detailed version", el("span", { text: d.kind === "disease" ? "pathology, complications, outlook" : d.kind === "test" ? "how it's done, what affects results" : "more depth and evidence" }))
+    ));
+
+    const conf = str(d.confidence).toLowerCase();
+    if (str(d.uncertainty) || conf === "low" || conf === "moderate" || d.needsResearch) {
+      r.insertBefore(el("div", { class: "doubt", role: "note", "data-imp": "high" },
+        el("strong", {}, el("span", { class: "h3-text", text: conf === "low" ? "Evidence is limited" : "Some uncertainty" }), impTag("high")),
+        str(d.uncertainty) || "Parts of this answer rest on limited or mixed evidence.",
+        d.needsResearch ? el("span", { class: "doubt-more", text: " More research is needed before firm conclusions can be drawn." }) : null), body);
+    }
+    const evItems = arr(d.evidence).map(x => typeof x === "string" ? { source: x } : x).filter(x => x && str(x.source || x.title));
+    if (evItems.length || conf) {
+      const ul = el("ul", { class: "ev-list" });
+      for (const x of evItems) {
+        const label = [str(x.source), str(x.title), str(x.year)].filter(Boolean).join(" · ");
+        const q = encodeURIComponent((str(x.title) || str(x.source)).slice(0, 160));
+        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href: "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)", target: "_blank", rel: "noopener", text: "Read free ↗" })));
+      }
+      r.append(el("details", { class: "evidence", ...(conf && conf !== "high" ? { open: "" } : {}) },
+        el("summary", {}, "Open-access sources", conf ? el("span", { class: "conf", text: conf + " confidence" }) : null),
+        ul,
+        el("p", { class: "ev-note", text: "MedQuery bases answers on free, open-access journals and public guidelines. The links search Europe PMC's open-access collection so you can read the evidence yourself." })));
+    }
+
+    const fu = el("div", { class: "followup" });
+    const rel = arr(d.related).map(str).filter(Boolean);
+    if (rel.length) {
+      const wrap = el("div", { class: "related" });
+      rel.slice(0, 6).forEach(x => wrap.append(el("button", { class: "chip", type: "button", text: x, onclick: () => { mode = "auto"; input.value = x; run(x); } })));
+      fu.append(el("div", { class: "meta", text: "Related" }), wrap);
+    }
+    const fi = el("input", { id: "fuq", type: "text", placeholder: "Ask a follow-up about " + (str(d.title) || "this"), "aria-label": "Follow-up question" });
+    const form = el("form", { class: "fu" }, fi, el("button", { type: "submit", text: "Ask" }));
+    form.addEventListener("submit", e => { e.preventDefault(); const v = fi.value.trim(); if (v) run(v, { context: d }); });
+    fu.append(form);
+    r.append(fu);
+    r.append(el("div", { class: "disclaimer" }, el("b", { text: "Tip: " }), "highlight any word in this answer to see what it means. ", "General information, not a diagnosis. In an emergency call your local emergency number (112 in India)."));
+  }
+
+  function renderDisease(d, body) {
+    if (str(d.definition)) body.append(sec("Definition", el("p", { text: str(d.definition) })));
+    const sy = d.symptoms || {};
+    if (has(sy.common) || has(sy.uncommon)) body.append(sec("Symptoms", el("div", { class: "two" },
+      el("div", {}, el("h4", { text: "Common" }), blist(sy.common)),
+      has(sy.uncommon) ? el("div", {}, el("h4", { text: "Less common" }), blist(sy.uncommon)) : null)));
+    if (has(d.causes)) body.append(sec("Causes", blist(d.causes)));
+    if (has(d.tests)) body.append(sec("Screening & tests to confirm",
+      table(["Test", "What it shows"], arr(d.tests).map(t => [testLink(str(t.name)), str(t.why)]))));
+    const hr = d.homeRemedies || {};
+    const items = arr(hr.items).filter(x => str(x.name));
+    if (hr.applicable && items.length) {
+      const wrap = el("div", { class: "remedies" });
+      items.forEach(x => {
+        const al = arr(x.allergens).map(str).filter(Boolean);
+        wrap.append(el("div", { class: "remedy" },
+          el("div", { class: "remedy-name", text: str(x.name) }),
+          el("p", { text: str(x.how) }),
+          al.length
+            ? el("div", { class: "allergen", role: "note" }, el("b", { text: "⚠ Allergen warning: " }), "contains " + al.join(", ") + ". Skip this if you are allergic or unsure.")
+            : el("div", { class: "no-allergen", text: "No common food allergens" })));
+      });
+      body.append(sec("Safe home remedies", el("p", { class: "note", text: str(hr.note) || "These ease symptoms only. They do not replace treatment. See a doctor if symptoms get worse or last more than a few days." }), wrap));
+    } else if (hr.applicable === false) {
+      body.append(sec("Home remedies", el("p", { class: "note", text: str(hr.note) || "This condition needs medical treatment. Home remedies are not a safe substitute." })));
+    }
+    if (has(d.prevention)) body.append(sec("Prevention", blist(d.prevention)));
+    const tr = arr(d.treatments).filter(t => str(t.option));
+    if (tr.length) {
+      const sel = el("select", { id: "cur", "aria-label": "Currency" });
+      Object.keys(FX).forEach(c => sel.append(el("option", { value: c, text: c }))); sel.value = currency;
+      const tblHost = el("div");
+      const draw = () => tblHost.replaceChildren(table(["Treatment", "How it's given", "Approx. cost", "Notes"], tr.map(t => [str(t.option), str(t.route) || "—", el("span", { class: "money", text: costText(t) + (str(t.unit) ? " " + str(t.unit) : "") }), str(t.note)])));
+      sel.addEventListener("change", () => { currency = sel.value; try { localStorage.setItem("medquery.cur", currency); } catch {} draw(); });
+      draw();
+      body.append(sec("Treatment options & cost",
+        el("div", { class: "curbar" }, el("label", { for: "cur", text: "Show costs in" }), sel),
+        tblHost,
+        el("p", { class: "note", text: "Rough estimates only. INR figures are typical Indian prices; other currencies are converted from typical US prices at approximate exchange rates. Real costs vary a lot by country, hospital and insurance." })));
+    }
+  }
+
+  function testLink(name) {
+    return el("button", { class: "linkish", type: "button", text: name, onclick: () => { mode = "test"; input.value = name; run(name); } });
+  }
+
+  function renderTest(d, body) {
+    if (str(d.purpose)) body.append(sec("What it checks", el("p", { text: str(d.purpose) })));
+    const comps = arr(d.components).filter(c => str(c.name));
+    if (comps.length) {
+      const host = el("div");
+      const state = { personal: null, label: "" };
+      const draw = () => {
+        const cols = ["Element tested", "Normal value", ...(state.personal ? ["For " + state.label] : []), "Unit"];
+        host.replaceChildren(table(cols, comps.map(c => {
+          const p = state.personal?.[str(c.name).toLowerCase()];
+          return [str(c.name), el("span", {}, str(c.normal) || "—", c.depends ? el("sup", { class: "dep", title: "Depends on " + arr(d.factors).join(", ") || "personal factors", text: " *" }) : null), ...(state.personal ? [el("b", { text: p || "same" })] : []), str(c.unit)];
+        })));
+      };
+      draw();
+      const parts = [host];
+      if (comps.some(c => c.depends) && has(d.factors)) parts.push(factorWidget(d, comps, state, draw));
+      body.append(sec("Elements tested & normal values", ...parts));
+    }
+    if (has(d.highLow)) body.append(sec("What abnormal results can mean", table(["Result", "Possible meaning"], arr(d.highLow).map(x => [str(x.finding), str(x.meaning)]))));
+    if (str(d.specimen) || str(d.preparation)) body.append(sec("Before the test", blist([str(d.specimen) && "Sample: " + str(d.specimen), str(d.preparation) && "Preparation: " + str(d.preparation)])));
+  }
+
+  // personal-factor widget for tests whose normal values depend on age, sex etc.
+  function factorWidget(d, comps, state, draw) {
+    const factors = arr(d.factors).map(str).filter(Boolean).slice(0, 4);
+    const fields = el("div", { class: "fields" });
+    const getters = [];
+    factors.forEach((f, i) => {
+      const id = "fac" + i, low = f.toLowerCase();
+      let ctrl;
+      if (/^age/.test(low)) { ctrl = el("input", { id, type: "number", min: "0", max: "120", inputmode: "numeric", placeholder: "years" }); }
+      else if (/sex|gender/.test(low)) { ctrl = el("select", { id }, el("option", { value: "", text: "Choose" }), el("option", { value: "female", text: "Female" }), el("option", { value: "male", text: "Male" })); }
+      else if (/pregnan/.test(low)) { ctrl = el("select", { id }, el("option", { value: "", text: "Choose" }), el("option", { value: "not pregnant", text: "Not pregnant" }), el("option", { value: "1st trimester", text: "1st trimester" }), el("option", { value: "2nd trimester", text: "2nd trimester" }), el("option", { value: "3rd trimester", text: "3rd trimester" })); }
+      else if (/fast/.test(low)) { ctrl = el("select", { id }, el("option", { value: "", text: "Choose" }), el("option", { value: "fasting", text: "Fasting" }), el("option", { value: "non-fasting", text: "Not fasting" })); }
+      else ctrl = el("input", { id, type: "text" });
+      fields.append(el("div", { class: "field" }, el("label", { for: id, text: f.charAt(0).toUpperCase() + f.slice(1) }), ctrl));
+      getters.push(() => [f, str(ctrl.value)]);
+    });
+    const status = el("p", { class: "note", "aria-live": "polite" });
+    const btn = el("button", { class: "more-btn small", type: "submit", text: "Show my normal values" });
+    const form = el("form", { class: "factors" },
+      el("div", { class: "fac-head" }, el("b", { text: "These values change with " + factors.join(", ").toLowerCase() + "." }), " Enter yours to see the normal range that applies to you."),
+      fields, el("div", { class: "fac-actions" }, btn, status));
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const vals = getters.map(g => g()).filter(([, v]) => v);
+      if (!vals.length) { status.textContent = "Fill in at least one field."; return; }
+      const s = await getSample(); if (!s) { status.textContent = "Personal ranges need Claude, which only runs when this page is opened in Claude."; return; }
+      btn.disabled = true; status.textContent = "Looking up your ranges…";
+      const who = vals.map(([f, v]) => f + ": " + v).join(", ");
+      try {
+        const res = await s.json(`Give standard laboratory reference ranges for the test "${str(d.title)}" for a person with ${who}. Elements: ${comps.map(c => str(c.name) + " (" + str(c.unit) + ")").join("; ")}. Use widely used reference intervals (conventional units as listed). Reply with ONLY a JSON object mapping each element name exactly as given to a short range string, e.g. {"Hemoglobin":"12.0–15.5"}.`, { modelTier: "default" });
+        const map = {}; for (const [kk, v] of Object.entries(res || {})) map[kk.toLowerCase()] = str(v);
+        state.personal = map; state.label = vals.map(([, v]) => /^\d+$/.test(v) ? v + " yrs" : v).join(", ");
+        draw(); status.textContent = "Shown in the table above. Your lab's printed range takes priority.";
+      } catch (err) { status.textContent = err?.code === "not_granted" ? "Claude access was not allowed, so personal ranges can't be shown." : "Couldn't get your ranges. Try again."; }
+      finally { btn.disabled = false; }
+    });
+    return form;
+  }
+
+  function renderDrug(d, body) {
+    const g = d.drug || {};
+    if (str(g.class) || str(g.howItWorks)) body.append(sec("What it is", el("p", { text: [str(g.class), str(g.howItWorks)].filter(Boolean).join(". ") })));
+    const ad = g.administration || {};
+    if (has(ad.routes) || str(ad.how)) body.append(sec("How it's taken", has(ad.routes) ? el("div", { class: "routes" }, ...arr(ad.routes).map(str).filter(Boolean).map(x => el("span", { class: "route", text: x }))) : null, str(ad.how) ? el("p", { text: str(ad.how) }) : null));
+    if (has(g.uses)) body.append(sec("Used for", blist(g.uses)));
+    if (has(g.commonSideEffects) || has(g.seriousSideEffects)) body.append(sec("Side effects", el("div", { class: "two" },
+      el("div", {}, el("h4", { text: "Common" }), blist(g.commonSideEffects)),
+      has(g.seriousSideEffects) ? el("div", {}, el("h4", { text: "Serious, get help" }), blist(g.seriousSideEffects)) : null)));
+    if (has(g.cautions)) body.append(sec("Who should be careful", blist(g.cautions)));
+    if (has(g.interactions)) body.append(sec("Interactions", blist(g.interactions)));
+  }
+
+  function renderQuestion(d, body) {
+    if (str(d.answer)) body.append(sec("Answer", ...str(d.answer).split(/\n{2,}/).map(p => el("p", { text: p }))));
+    if (has(d.points)) body.append(sec("Key points", blist(d.points)));
+  }
+
+  function renderLoading(q, detail) {
+    const r = $("#report"); r.replaceChildren();
+    const steps = ["Understanding your search", "Checking guideline-level evidence", detail ? "Writing the detailed version" : "Writing a short answer"];
+    const ul = el("ul", { class: "steps" }); steps.forEach((s, i) => ul.append(el("li", { class: i === 0 ? "on" : "", text: s })));
+    const stop = el("button", { class: "stop", type: "button", text: "Stop", onclick: () => ctl?.abort() });
+    r.append(el("div", { class: "loading" }, el("div", { class: "meta", text: "Searching" }), el("div", { class: "q", text: q }), el("div", { class: "bar" }, el("i")), ul, stop));
+    const t = setTimeout(() => ul.children[1]?.classList.add("on"), 2500);
+    return {
+      writing() { clearTimeout(t); [...ul.children].forEach(li => li.classList.add("on")); },
+      done() { clearTimeout(t); }
+    };
+  }
+
+  function renderError(title, msg, q) {
+    const r = $("#report"); r.replaceChildren();
+    r.append(el("div", { class: "err" },
+      el("div", { class: "meta", text: "No answer" }),
+      el("h2", { text: title, style: "font-family:var(--f-display);margin:0" }),
+      el("p", { text: msg, style: "margin:0;color:var(--muted)" }),
+      q ? el("p", { style: "margin:0" }, "The reference links beside this are already set to “" + q + "”.") : null,
+      q ? el("button", { class: "stop", type: "button", text: "Try again", onclick: () => run(q, { keepMode: true }) }) : null
+    ));
+  }
+
+  // ---------- Prompt ----------
+  function buildPrompt(q, context, detail) {
+    const hint = mode === "auto" ? "Detect the kind yourself." : "The user picked a suggestion of kind: " + mode + ".";
+    const ctx = context ? `\nThis is a follow-up to an earlier answer titled "${str(context.title)}" (summary: ${str(context.summary)}). Answer the follow-up in that context, usually as kind "question".\n` : "";
+    const length = detail
+      ? `LENGTH: DETAILED version. Fill every field fully (lists up to 8 items, each item one or two sentences) and add 3-5 "details" sections (for diseases: Pathology & pathophysiology, Complications, Outlook, Who is at risk; for tests: How it is done, What can affect results, Follow-up tests; for drugs: Typical dosing (general, "as prescribed"), Monitoring, Pregnancy & breastfeeding). About 700-1000 words.`
+      : `LENGTH: QUICK version. Brief and simple, plain words a non-medical reader understands. Each list item is a short phrase (under 10 words). Lists 3-5 items. Summary one or two short sentences. "details": []. About 200-350 words total.`;
+    return `You are MedQuery, a medical reference engine. Base every statement STRICTLY on the best freely accessible (open-access, not paywalled) medical evidence: open-access peer-reviewed journals and articles (e.g. PubMed Central / Europe PMC open-access articles, Cochrane review abstracts and plain-language summaries, BMJ Open, PLOS Medicine, BMC Medicine and other BMC journals, JAMA Network Open, eClinicalMedicine, The Lancet's open-access titles), free clinical references (NCBI Bookshelf / StatPearls, MedlinePlus) and free public guidelines and labels (WHO, CDC, NICE, NIH, national health ministries such as ICMR/MoHFW, FDA DailyMed). Do not rely on paywalled-only sources. If open-access evidence is thin, mixed, preliminary or you are unsure, say so plainly in "uncertainty", lower "confidence", and set "needsResearch" true when more research is needed. Never invent studies, statistics, titles or citations; name only real sources you are confident exist. Never give personalised dosing. If the query is not medical, use kind "question" and say MedQuery covers medical topics. If it describes an emergency, fill "urgent".
+${hint}${ctx}
+Query: """${q.slice(0, 2000)}"""
+
+${length}
+
+Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects {"source": open-access journal or free guideline body, "title": real article/guideline title or topic page you are confident exists, "year": "YYYY or ''"}), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
+Then the fields for that kind:
+- disease: "definition" (1-2 plain sentences), "symptoms": {"common": [...], "uncommon": [...]}, "causes": [...], "tests": [{"name","why"}] (screening and confirmatory tests), "homeRemedies": {"applicable": true only for simple, usually self-limiting conditions (e.g. common cold, mild gastroenteritis, minor burns) else false, "note": "one line on when to see a doctor, or why home remedies are not appropriate", "items": [{"name","how": "one-line recipe/method","allergens": [list every known common allergen in it, e.g. milk, egg, peanut, tree nuts, soy, wheat/gluten, sesame, mustard, fish, shellfish, celery, honey (never for infants under 1), citrus, turmeric, ginger, garlic, pollen; [] if none]}]} — only well-established safe remedies, "prevention": [...], "treatments": [{"option","route": "for medicines: how it is given (route + form, e.g. Oral tablet, IV injection, Inhaler, Eye drops); '' for non-medicine treatments","note": "short","usd": [low, high] typical US cost as numbers,"inr": [low, high] typical Indian cost as numbers,"unit": "e.g. per course, per month, one-time"}].
+- test: "purpose", "specimen", "preparation", "components": [{"name","normal": "typical adult normal range","unit": "conventional unit","depends": true if the normal value meaningfully changes with age, sex, pregnancy or another factor}] — list EVERY element/parameter the test reports (e.g. CBC: hemoglobin, hematocrit, RBC, MCV, MCH, MCHC, RDW, WBC, neutrophils, lymphocytes, monocytes, eosinophils, basophils, platelets), "factors": [the factors the ranges depend on, from: "age","sex","pregnancy","fasting"], "highLow": [{"finding": "e.g. High ALT","meaning"}].
+- drug: "drug": {"class","howItWorks","administration": {"routes": ["every available route + form, e.g. Oral tablet", "IV injection", "Topical gel"], "how": "1-2 plain sentences on how and when it is taken or given (with or without food, who gives it, how often in general terms; never personal doses)"},"uses": [...],"commonSideEffects": [...],"seriousSideEffects": [...],"cautions": [...],"interactions": [...]}.
+- question: "answer" (direct answer, plain text), "points": [...].
+MEDICINES: whenever you name a specific medicine anywhere (treatments, answers, points, details), always state how it is given: route and form (e.g. "oral tablet", "IV infusion in hospital", "inhaler", "skin cream", "injection under the skin").${LANG_NOTE()}`;
+  }
+
+  // ---------- Highlight a word to see its meaning ----------
+  const pop = el("div", { class: "define", id: "define", role: "dialog", "aria-label": "Definition", hidden: "" });
+  document.body.append(pop);
+  let selTimer = null, defCtl = null, lastSel = "";
+  function hidePop() { pop.hidden = true; defCtl?.abort(); lastSel = ""; }
+  function placePop(rect) {
+    const w = Math.min(320, innerWidth - 32);
+    pop.style.width = w + "px";
+    let left = rect.left + rect.width / 2 - w / 2;
+    left = Math.max(16, Math.min(left, innerWidth - w - 16));
+    const below = rect.bottom + 10, h = pop.offsetHeight || 120;
+    const top = below + h > innerHeight - 12 ? Math.max(12, rect.top - h - 10) : below;
+    pop.style.left = left + "px"; pop.style.top = top + "px";
+  }
+  async function define(term, rect) {
+    const close = el("button", { class: "def-x", type: "button", "aria-label": "Close", text: "×", onclick: hidePop });
+    const title = el("div", { class: "def-term", text: term });
+    const bodyEl = el("p", { class: "def-body", text: "Looking up…" });
+    pop.replaceChildren(close, el("div", { class: "meta", text: "Meaning" }), title, bodyEl);
+    pop.hidden = false; placePop(rect);
+    const local = INDEX.find(x => x.term.toLowerCase() === term.toLowerCase() || x.term.toLowerCase().startsWith(term.toLowerCase() + " ("));
+    const s = await getSample();
+    if (!s) { bodyEl.textContent = local ? local.note + "." : "Definitions need Claude, which only runs when this page is opened in Claude."; placePop(rect); return; }
+    defCtl?.abort(); const my = defCtl = new AbortController();
+    const context = ($("#report h2")?.textContent || "").slice(0, 80);
+    try {
+      const res = await s.json(`Define the term "${term.slice(0, 80)}" as used in a medical answer about "${context}". Reply with ONLY JSON: {"medical": true|false, "term": "canonical term", "definition": "one or two plain sentences a non-medical reader understands, under 40 words"}. If it is not a medical or health-related word, set medical false and definition "".${LANG_NOTE()}`, { modelTier: "quick", signal: my.signal, cache: { gcTime: 24 * 3600 * 1000 } });
+      if (my !== defCtl) return;
+      if (res && res.medical && str(res.definition)) {
+        title.textContent = str(res.term) || term; bodyEl.textContent = str(res.definition);
+        pop.append(el("button", { class: "linkish def-more", type: "button", text: "Search “" + (str(res.term) || term) + "” →", onclick: () => { hidePop(); mode = "auto"; input.value = str(res.term) || term; run(input.value); } }));
+      } else bodyEl.textContent = "That doesn't look like a medical term. Highlight a medical word to see its meaning.";
+    } catch (e) {
+      if (e?.code === "cancelled") return;
+      bodyEl.textContent = local ? local.note + "." : (e?.code === "not_granted" ? "Claude access was not allowed, so definitions can't be shown." : "Couldn't load a definition. Try again.");
+    }
+    placePop(rect);
+  }
+  function checkSelection() {
+    const sel = getSelection();
+    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const report = $("#report");
+    if (!report.contains(range.commonAncestorContainer)) return;
+    if (range.commonAncestorContainer.parentElement?.closest("input,textarea,select,button")) return;
+    const text = sel.toString().replace(/\s+/g, " ").trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N})]+$/gu, "");
+    if (text.length < 2 || text.length > 60 || text.split(" ").length > 6 || text === lastSel) return;
+    lastSel = text;
+    define(text, range.getBoundingClientRect());
+  }
+  document.addEventListener("selectionchange", () => { clearTimeout(selTimer); selTimer = setTimeout(checkSelection, 450); });
+  document.addEventListener("pointerdown", e => { if (!pop.hidden && !pop.contains(e.target)) { hidePop(); } });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !pop.hidden) hidePop(); });
+  addEventListener("scroll", () => { if (!pop.hidden) hidePop(); }, { passive: true });
+
+  // ---------- Click a block to enlarge it; click outside (or Esc) to close ----------
+  let zoom = null;
+  const CARD = ".sec, .report-head";
+  const INTERACTIVE = "a, button, input, select, textarea, label, summary, details, .linkish, .chip, form";
+  const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function openZoom(card) {
+    if (zoom || !card) return;
+    const report = $("#report");
+    const first = card.getBoundingClientRect();
+    const holder = el("div", { class: "zoom-holder", "aria-hidden": "true" }); holder.style.height = first.height + "px";
+    card.before(holder);
+    const closeBtn = el("button", { class: "zoom-x", type: "button", "aria-label": "Close enlarged view", text: "×" });
+    const stage = el("div", { class: "zoom-stage" });
+    const layer = el("div", { class: "zoom-layer", role: "dialog", "aria-modal": "true", "aria-label": (card.querySelector("h2,h3")?.textContent || "Section") + ", enlarged" }, stage);
+    report.append(layer);
+    stage.append(card); card.append(closeBtn);
+    card.classList.add("zoomed"); card.style.animation = "none";
+    document.documentElement.classList.add("zoom-open");
+    // animate from where the block was to the centre
+    const last = card.getBoundingClientRect();
+    if (!reduceMotion() && last.width) {
+      card.animate([{ transform: `translate(${first.left - last.left}px, ${first.top - last.top}px) scale(${first.width / last.width})`, transformOrigin: "top left" }, { transform: "none", transformOrigin: "top left" }], { duration: 320, easing: "cubic-bezier(.2,.8,.2,1)" });
+      layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 220 });
+    }
+    zoom = { card, holder, layer, closeBtn, back: document.activeElement };
+    closeBtn.addEventListener("click", closeZoom);
+    layer.addEventListener("click", e => { if (!card.contains(e.target)) closeZoom(); });
+    card.focus({ preventScroll: true });
+  }
+  function closeZoom() {
+    if (!zoom) return;
+    const { card, holder, layer, closeBtn } = zoom; zoom = null;
+    const finish = () => { closeBtn.remove(); card.classList.remove("zoomed"); holder.replaceWith(card); layer.remove(); document.documentElement.classList.remove("zoom-open"); card.focus({ preventScroll: true }); };
+    if (reduceMotion()) return finish();
+    const from = card.getBoundingClientRect(), to = holder.getBoundingClientRect();
+    const a = card.animate([{ transform: "none", transformOrigin: "top left" }, { transform: `translate(${to.left - from.left}px, ${to.top - from.top}px) scale(${to.width / from.width})`, transformOrigin: "top left" }], { duration: 240, easing: "cubic-bezier(.4,0,.2,1)" });
+    layer.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240 });
+    a.onfinish = finish; a.oncancel = finish;
+  }
+  $("#report").addEventListener("click", e => {
+    if (zoom) return;
+    const card = e.target.closest(CARD); if (!card || e.target.closest(INTERACTIVE)) return;
+    if (String(getSelection() || "").trim()) return; // a text highlight is for definitions, not zoom
+    openZoom(card);
+  });
+  $("#report").addEventListener("keydown", e => {
+    if (zoom || (e.key !== "Enter" && e.key !== " ")) return;
+    if (e.target.matches?.(CARD)) { e.preventDefault(); openZoom(e.target); }
+  });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && zoom) { e.stopPropagation(); closeZoom(); } }, true);
+
+  // ---------- Pictures: hand-drawn medical illustrations (the page cannot load web images) ----------
+  const ICONS = {
+    heart:  ['M24 40s-14-8.5-14-19a8 8 0 0 1 14-5 8 8 0 0 1 14 5c0 10.5-14 19-14 19z', 'M11 25h7l3-5 4 10 3-5h9'],
+    lung:   ['M24 7v15', 'M24 22l-5 4M24 22l5 4', 'M19 15c-6 0-10 9-10 18 0 4 3 6 6 5l4-2V15z', 'M29 15c6 0 10 9 10 18 0 4-3 6-6 5l-4-2V15z'],
+    brain:  ['M23 10c-4-2-9 0-9 4-4 1-6 5-4 8-2 3-1 7 2 8 0 4 4 7 8 6 1 2 3 2 3 2V10z', 'M25 10c4-2 9 0 9 4 4 1 6 5 4 8 2 3 1 7-2 8 0 4-4 7-8 6-1 2-3 2-3 2V10z', 'M16 19c3 1 4 3 3 6M32 19c-3 1-4 3-3 6M18 31c2-1 4 0 5 1M30 31c-2-1-4 0-5 1'],
+    liver:  ['M7 19c0-5 5-7 11-7h20c3 0 5 3 3 6-4 7-13 15-22 17C12 36 7 31 7 25z', 'M26 12c-1 7-3 13-7 19', 'M30 33c1 2 3 3 5 2'],
+    kidney: ['M19 9c-6 0-10 6-10 15s4 15 10 15c4 0 6-3 6-6s-3-5-3-9 3-6 3-9-2-6-6-6z', 'M24 24h5c2 0 3 2 3 4v12', 'M36 14a4 4 0 1 1 0 .1'],
+    tube:   ['M17 7h14', 'M19 7v27a5 5 0 0 0 10 0V7', 'M19 21h10', 'M22 27v4'],
+    drop:   ['M24 7c6 9 12 15 12 22a12 12 0 0 1-24 0c0-7 6-13 12-22z', 'M18 30a6 6 0 0 0 5 5'],
+    pill:   ['M14 34a7 7 0 0 1 0-10l10-10a7 7 0 0 1 10 10L24 34a7 7 0 0 1-10 0z', 'M19 19l10 10', 'M38 34a4 4 0 1 1-.1 0z'],
+    gut:    ['M20 7v6c0 3-2 5-5 7-4 3-6 8-4 13 3 6 12 8 19 5 6-3 9-9 7-15-1-4-5-6-9-5-3 1-4 4-7 4', 'M30 38v4'],
+    bone:   ['M14 9a4 4 0 0 0-4 6 4 4 0 0 0 6 4l13 13a4 4 0 0 0 4 6 4 4 0 0 0 6-4 4 4 0 0 0-4-6L19 15a4 4 0 0 0-5-6z'],
+    skin:   ['M7 17c5-3 12 3 17 0s12-3 17 0', 'M7 25h34M7 33h34', 'M17 17V8M29 16V9', 'M23 25v8'],
+    eye:    ['M5 24s7-11 19-11 19 11 19 11-7 11-19 11S5 24 5 24z', 'M24 18a6 6 0 1 1-.1 0z', 'M24 22a2 2 0 1 1-.1 0z'],
+    endo:   ['M22 15c-4-4-12-2-12 6 0 7 6 12 11 10l1-1V15z', 'M26 15c4-4 12-2 12 6 0 7-6 12-11 10l-1-1V15z', 'M22 22h4', 'M24 7v8'],
+    microbe:['M24 14a10 10 0 1 1-.1 0z', 'M24 14V8M24 40v-6M14 24H8M40 24h-6M17 17l-4-4M31 31l4 4M31 17l4-4M17 31l-4 4', 'M21 22a2 2 0 1 1-.1 0zM27 27a1.5 1.5 0 1 1-.1 0z'],
+    repro:  ['M15 13c0 4 4 7 7 9v9a2 2 0 0 0 4 0v-9c3-2 7-5 7-9', 'M11 10a3 3 0 1 1-.1 0zM37 10a3 3 0 1 1-.1 0z', 'M22 40h4'],
+    immune: ['M24 41V27', 'M24 27l-8-8M24 27l8-8', 'M13 10l5 5M35 10l-5 5', 'M11 14l4-4M37 14l-4-4'],
+    dna:    ['M16 7c0 10 16 10 16 17s-16 7-16 17', 'M32 7c0 10-16 10-16 17s16 7 16 17', 'M18 12h12M17 19h14M17 29h14M18 36h12'],
+    mind:   ['M30 40V32c6-2 9-7 9-13 0-7-6-12-14-12S11 12 11 19c0 3 1 5 2 7l-3 5h4v4c0 2 2 3 4 3h4v2', 'M20 19a4 4 0 0 1 8 0c0 3-4 3-4 6'],
+    ask:    ['M21 9a12 12 0 1 1-.1 0z', 'M30 30l10 10', 'M17 18a4 4 0 0 1 8 0c0 3-4 3-4 6M21 28v.5']
+  };
+  const KCOLOR = { disease: "--cap-disease", test: "--cap-test", drug: "--cap-drug", question: "--cap-q" };
+  function picture(sys, kind) {
+    const c = "var(" + (KCOLOR[kind] || "--cap-q") + ")";
+    const box = el("span", { class: "pic", "aria-hidden": "true", style: `--kc:${c};background:color-mix(in srgb,${c} 14%,var(--card));color:${c}` });
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("viewBox", "0 0 48 48"); svg.setAttribute("fill", "none"); svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2.4"); svg.setAttribute("stroke-linecap", "round"); svg.setAttribute("stroke-linejoin", "round");
+    for (const d of ICONS[sys] || ICONS.ask) { const p = document.createElementNS(SVGNS, "path"); p.setAttribute("d", d); svg.append(p); }
+    box.append(svg);
+    return box;
+  }
+
+  // ---------- Built-in term index: name | kind (d disease, t test, m medicine) | picture | short note ----------
+  const RAW = `Type 2 diabetes mellitus|d|endo|Insulin resistance, high blood sugar
+Type 1 diabetes mellitus|d|endo|Autoimmune loss of insulin
+Diabetic ketoacidosis|d|endo|Acute diabetes emergency
+Hypothyroidism|d|endo|Underactive thyroid
+Hyperthyroidism|d|endo|Overactive thyroid
+Hashimoto's thyroiditis|d|endo|Autoimmune hypothyroidism
+Graves' disease|d|endo|Autoimmune hyperthyroidism
+Cushing's syndrome|d|endo|Excess cortisol
+Addison's disease|d|endo|Adrenal insufficiency
+Polycystic ovary syndrome (PCOS)|d|repro|Hormonal, ovulatory disorder
+Obesity|d|endo|Excess body fat, BMI ≥ 30
+Metabolic syndrome|d|endo|Cluster of cardiometabolic risks
+Hypertension|d|heart|High blood pressure
+Coronary artery disease|d|heart|Atherosclerosis of heart arteries
+Myocardial infarction|d|heart|Heart attack
+Angina pectoris|d|heart|Chest pain from ischemia
+Heart failure|d|heart|Heart can't pump enough
+Atrial fibrillation|d|heart|Irregular heart rhythm
+Atherosclerosis|d|heart|Plaque in artery walls
+Cardiomyopathy|d|heart|Heart muscle disease
+Rheumatic heart disease|d|heart|Valve damage after rheumatic fever
+Infective endocarditis|d|heart|Infection of heart valves
+Deep vein thrombosis|d|drop|Clot in a deep vein
+Pulmonary embolism|d|lung|Clot in lung arteries
+Stroke|d|brain|Loss of blood flow to brain
+Transient ischemic attack|d|brain|Mini-stroke
+Asthma|d|lung|Reversible airway narrowing
+Chronic obstructive pulmonary disease (COPD)|d|lung|Emphysema and chronic bronchitis
+Pneumonia|d|lung|Lung infection
+Tuberculosis|d|lung|Mycobacterium tuberculosis infection
+Bronchiectasis|d|lung|Permanently widened airways
+Pulmonary fibrosis|d|lung|Scarring of lung tissue
+Lung cancer|d|lung|Malignant lung tumour
+COVID-19|d|microbe|SARS-CoV-2 infection
+Influenza|d|microbe|Flu virus infection
+Dengue fever|d|microbe|Mosquito-borne viral fever
+Malaria|d|microbe|Plasmodium parasite infection
+Typhoid fever|d|microbe|Salmonella Typhi infection
+Chikungunya|d|microbe|Mosquito-borne viral arthritis
+HIV/AIDS|d|immune|Human immunodeficiency virus
+Hepatitis A|d|liver|Viral liver infection, fecal-oral
+Hepatitis B|d|liver|Viral liver infection, blood/sexual
+Hepatitis C|d|liver|Viral liver infection, blood-borne
+Sepsis|d|microbe|Life-threatening response to infection
+Urinary tract infection|d|kidney|Bladder or kidney infection
+Cholera|d|microbe|Vibrio cholerae diarrhea
+Measles|d|microbe|Highly contagious viral rash
+Chickenpox (varicella)|d|skin|Varicella-zoster virus
+Shingles (herpes zoster)|d|skin|Reactivated varicella virus
+Meningitis|d|brain|Inflammation of brain membranes
+Leprosy|d|skin|Mycobacterium leprae infection
+Rabies|d|brain|Fatal viral encephalitis
+Leptospirosis|d|microbe|Bacterial infection from animal urine
+Fatty liver disease (MASLD)|d|liver|Fat build-up in the liver
+Cirrhosis|d|liver|End-stage liver scarring
+Gallstones (cholelithiasis)|d|liver|Stones in the gallbladder
+Acute pancreatitis|d|gut|Inflamed pancreas
+Gastroesophageal reflux disease (GERD)|d|gut|Acid reflux
+Peptic ulcer disease|d|gut|Stomach or duodenal ulcer
+Helicobacter pylori infection|d|gut|Stomach bacterium
+Irritable bowel syndrome|d|gut|Functional bowel disorder
+Crohn's disease|d|gut|Inflammatory bowel disease
+Ulcerative colitis|d|gut|Inflammatory bowel disease
+Celiac disease|d|gut|Gluten-triggered autoimmune enteropathy
+Appendicitis|d|gut|Inflamed appendix
+Colorectal cancer|d|gut|Cancer of colon or rectum
+Gastric cancer|d|gut|Stomach cancer
+Chronic kidney disease|d|kidney|Gradual loss of kidney function
+Acute kidney injury|d|kidney|Sudden loss of kidney function
+Kidney stones (nephrolithiasis)|d|kidney|Mineral stones in urinary tract
+Nephrotic syndrome|d|kidney|Heavy protein loss in urine
+Glomerulonephritis|d|kidney|Inflamed kidney filters
+Polycystic kidney disease|d|kidney|Inherited kidney cysts
+Iron deficiency anemia|d|drop|Low iron, small red cells
+Vitamin B12 deficiency anemia|d|drop|Large red cells, nerve damage
+Sickle cell disease|d|drop|Inherited abnormal hemoglobin
+Thalassemia|d|drop|Inherited reduced globin chains
+Leukemia|d|drop|Cancer of blood-forming cells
+Lymphoma|d|immune|Cancer of lymphocytes
+Multiple myeloma|d|bone|Plasma-cell cancer
+Hemophilia|d|drop|Inherited clotting factor deficiency
+Thrombocytopenia|d|drop|Low platelet count
+Breast cancer|d|repro|Malignant breast tumour
+Cervical cancer|d|repro|HPV-linked cancer of cervix
+Prostate cancer|d|repro|Malignant prostate tumour
+Benign prostatic hyperplasia|d|repro|Enlarged prostate
+Endometriosis|d|repro|Uterine-like tissue outside uterus
+Preeclampsia|d|repro|High blood pressure in pregnancy
+Gestational diabetes|d|repro|Diabetes first found in pregnancy
+Infertility|d|repro|Unable to conceive after 12 months
+Rheumatoid arthritis|d|bone|Autoimmune joint inflammation
+Osteoarthritis|d|bone|Degenerative joint disease
+Osteoporosis|d|bone|Low bone density, fracture risk
+Gout|d|bone|Uric acid crystal arthritis
+Systemic lupus erythematosus|d|immune|Multi-system autoimmune disease
+Ankylosing spondylitis|d|bone|Inflammatory spine arthritis
+Psoriasis|d|skin|Immune-mediated scaly plaques
+Atopic dermatitis (eczema)|d|skin|Itchy inflamed skin
+Acne vulgaris|d|skin|Inflamed hair follicles
+Vitiligo|d|skin|Loss of skin pigment
+Melanoma|d|skin|Pigment-cell skin cancer
+Alzheimer's disease|d|brain|Progressive dementia
+Parkinson's disease|d|brain|Dopamine-loss movement disorder
+Epilepsy|d|brain|Recurrent seizures
+Migraine|d|brain|Recurrent severe headaches
+Multiple sclerosis|d|brain|Demyelinating autoimmune disease
+Guillain-Barré syndrome|d|brain|Acute immune nerve damage
+Myasthenia gravis|d|immune|Autoimmune muscle weakness
+Major depressive disorder|d|mind|Persistent low mood
+Generalized anxiety disorder|d|mind|Excessive, persistent worry
+Bipolar disorder|d|mind|Mood swings between mania and depression
+Schizophrenia|d|mind|Psychosis, disordered thinking
+ADHD|d|mind|Attention-deficit/hyperactivity disorder
+Autism spectrum disorder|d|mind|Neurodevelopmental condition
+Glaucoma|d|eye|Optic nerve damage, raised eye pressure
+Cataract|d|eye|Clouding of the lens
+Diabetic retinopathy|d|eye|Retinal damage from diabetes
+Macular degeneration|d|eye|Central vision loss
+Conjunctivitis|d|eye|Pink eye
+Down syndrome|d|dna|Trisomy 21
+Cystic fibrosis|d|dna|Inherited CFTR disorder
+Allergic rhinitis|d|immune|Hay fever
+Anaphylaxis|d|immune|Severe allergic reaction
+Complete blood count (CBC)|t|tube|Red cells, white cells, platelets
+Hemoglobin A1c (HbA1c)|t|tube|Average blood sugar, 2–3 months
+Fasting plasma glucose|t|tube|Blood sugar after 8 h fast
+Oral glucose tolerance test (OGTT)|t|tube|2-hour glucose challenge
+Lipid profile|t|tube|Cholesterol, LDL, HDL, triglycerides
+Liver function tests (LFT)|t|liver|ALT, AST, ALP, bilirubin, albumin
+Kidney function tests (KFT)|t|kidney|Creatinine, urea, eGFR
+Serum creatinine|t|kidney|Kidney filtration marker
+eGFR|t|kidney|Estimated glomerular filtration rate
+Blood urea nitrogen (BUN)|t|kidney|Kidney and protein metabolism
+Electrolytes (sodium, potassium)|t|tube|Na, K, Cl, bicarbonate
+Thyroid function tests (TSH, T3, T4)|t|endo|Thyroid hormone levels
+TSH|t|endo|Thyroid-stimulating hormone
+C-reactive protein (CRP)|t|tube|Inflammation marker
+Erythrocyte sedimentation rate (ESR)|t|tube|Non-specific inflammation marker
+Procalcitonin|t|tube|Bacterial infection marker
+Troponin|t|heart|Heart-muscle injury marker
+BNP / NT-proBNP|t|heart|Heart failure marker
+D-dimer|t|drop|Clot breakdown product
+Prothrombin time / INR|t|drop|Clotting time, warfarin monitoring
+aPTT|t|drop|Intrinsic clotting pathway
+Ferritin|t|tube|Iron stores
+Serum iron and TIBC|t|tube|Iron studies
+Vitamin B12 level|t|tube|Cobalamin level
+Vitamin D (25-hydroxy)|t|bone|Vitamin D status
+Serum uric acid|t|bone|Gout and kidney marker
+Urinalysis|t|kidney|Urine physical, chemical, microscopic exam
+Urine culture|t|kidney|Identifies urinary infection
+Urine albumin-creatinine ratio|t|kidney|Early kidney damage
+Stool occult blood test (FIT)|t|gut|Hidden blood in stool
+Blood culture|t|microbe|Bacteria in the bloodstream
+Dengue NS1 antigen|t|microbe|Early dengue detection
+Malaria smear / rapid test|t|microbe|Detects Plasmodium
+Widal test|t|microbe|Typhoid antibodies (limited accuracy)
+HIV test|t|immune|Antigen/antibody screening
+Hepatitis B surface antigen (HBsAg)|t|liver|Hepatitis B infection
+RT-PCR|t|dna|Detects viral genetic material
+Antinuclear antibody (ANA)|t|immune|Autoimmune screening
+Rheumatoid factor and anti-CCP|t|bone|Rheumatoid arthritis markers
+PSA (prostate-specific antigen)|t|repro|Prostate marker
+CA-125|t|repro|Ovarian cancer marker
+Pap smear|t|repro|Cervical cell screening
+Beta-hCG|t|repro|Pregnancy hormone
+Arterial blood gas (ABG)|t|lung|Oxygen, CO₂, pH
+Pulmonary function test (spirometry)|t|lung|Lung airflow and volume
+Electrocardiogram (ECG)|t|heart|Heart's electrical activity
+Echocardiogram|t|heart|Ultrasound of the heart
+Treadmill stress test (TMT)|t|heart|Exercise ECG
+Chest X-ray|t|lung|Imaging of lungs and heart
+CT scan|t|ask|Cross-sectional X-ray imaging
+MRI brain|t|brain|Magnetic resonance imaging of brain
+Ultrasound abdomen|t|liver|Imaging of abdominal organs
+Mammogram|t|repro|Breast X-ray screening
+Bone density scan (DEXA)|t|bone|Osteoporosis assessment
+Colonoscopy|t|gut|Camera exam of the colon
+Upper GI endoscopy|t|gut|Camera exam of esophagus and stomach
+Lumbar puncture (CSF analysis)|t|brain|Spinal fluid testing
+Electroencephalogram (EEG)|t|brain|Brain electrical activity
+Biopsy and histopathology|t|ask|Tissue examined under microscope
+Peripheral blood smear|t|drop|Blood cells under microscope
+Mantoux test (TST)|t|lung|Tuberculosis skin test
+Interferon-gamma release assay|t|lung|TB blood test
+Metformin|m|pill|Biguanide · first-line for type 2 diabetes
+Insulin glargine|m|pill|Long-acting insulin
+Empagliflozin|m|pill|SGLT2 inhibitor · diabetes, heart, kidney
+Semaglutide|m|pill|GLP-1 receptor agonist
+Glimepiride|m|pill|Sulfonylurea
+Sitagliptin|m|pill|DPP-4 inhibitor
+Levothyroxine|m|pill|Thyroid hormone replacement
+Atorvastatin|m|pill|Statin · lowers LDL cholesterol
+Rosuvastatin|m|pill|Statin · lowers LDL cholesterol
+Aspirin|m|pill|Antiplatelet, analgesic
+Clopidogrel|m|pill|P2Y12 antiplatelet
+Warfarin|m|pill|Vitamin K antagonist anticoagulant
+Apixaban|m|pill|Direct oral anticoagulant
+Amlodipine|m|pill|Calcium channel blocker
+Telmisartan|m|pill|Angiotensin receptor blocker
+Losartan|m|pill|Angiotensin receptor blocker
+Lisinopril|m|pill|ACE inhibitor
+Metoprolol|m|pill|Beta-blocker
+Furosemide|m|pill|Loop diuretic
+Hydrochlorothiazide|m|pill|Thiazide diuretic
+Spironolactone|m|pill|Aldosterone antagonist
+Paracetamol (acetaminophen)|m|pill|Analgesic, antipyretic
+Ibuprofen|m|pill|NSAID
+Diclofenac|m|pill|NSAID
+Tramadol|m|pill|Opioid analgesic
+Amoxicillin|m|pill|Penicillin antibiotic
+Amoxicillin-clavulanate|m|pill|Penicillin + beta-lactamase inhibitor
+Azithromycin|m|pill|Macrolide antibiotic
+Ciprofloxacin|m|pill|Fluoroquinolone antibiotic
+Doxycycline|m|pill|Tetracycline antibiotic
+Ceftriaxone|m|pill|Third-generation cephalosporin
+Metronidazole|m|pill|Anti-anaerobic, antiprotozoal
+Nitrofurantoin|m|pill|Urinary antibiotic
+Isoniazid|m|pill|First-line TB drug
+Rifampicin|m|pill|First-line TB drug
+Artemether-lumefantrine|m|pill|Antimalarial combination
+Oseltamivir|m|pill|Influenza antiviral
+Acyclovir|m|pill|Herpes antiviral
+Omeprazole|m|pill|Proton pump inhibitor
+Pantoprazole|m|pill|Proton pump inhibitor
+Ondansetron|m|pill|Anti-nausea (5-HT3 blocker)
+Loperamide|m|pill|Antidiarrheal
+Salbutamol (albuterol)|m|lung|Short-acting bronchodilator
+Budesonide-formoterol|m|lung|Inhaled steroid + LABA
+Montelukast|m|pill|Leukotriene receptor antagonist
+Cetirizine|m|pill|Antihistamine
+Prednisolone|m|pill|Corticosteroid
+Methotrexate|m|pill|Antimetabolite, DMARD
+Hydroxychloroquine|m|pill|Antimalarial, DMARD
+Allopurinol|m|pill|Lowers uric acid
+Sertraline|m|pill|SSRI antidepressant
+Escitalopram|m|pill|SSRI antidepressant
+Fluoxetine|m|pill|SSRI antidepressant
+Alprazolam|m|pill|Benzodiazepine
+Olanzapine|m|pill|Atypical antipsychotic
+Lithium|m|pill|Mood stabilizer
+Levetiracetam|m|pill|Antiseizure medicine
+Sodium valproate|m|pill|Antiseizure, mood stabilizer
+Gabapentin|m|pill|Neuropathic pain, antiseizure
+Levodopa-carbidopa|m|pill|Parkinson's treatment
+Donepezil|m|pill|Cholinesterase inhibitor
+Folic acid|m|pill|Vitamin B9 supplement
+Ferrous sulfate|m|pill|Oral iron
+Vitamin D3 (cholecalciferol)|m|pill|Vitamin D supplement
+Oral rehydration salts (ORS)|m|pill|Rehydration for diarrhea
+Tamoxifen|m|pill|Selective estrogen receptor modulator
+Sildenafil|m|pill|PDE5 inhibitor`;
+  const INDEX = RAW.split("\n").map(l => { const [term, k, sys, note] = l.split("|"); return { term, kind: { d: "disease", t: "test", m: "drug" }[k], sys, note }; });
+  // common short forms people type
+  const ALIASES = { "bp": "Hypertension", "high blood pressure": "Hypertension", "heart attack": "Myocardial infarction", "sugar": "Type 2 diabetes mellitus", "diabetes": "Type 2 diabetes mellitus", "a1c": "Hemoglobin A1c (HbA1c)", "cbc": "Complete blood count (CBC)", "lft": "Liver function tests (LFT)", "kft": "Kidney function tests (KFT)", "rft": "Kidney function tests (KFT)", "ecg": "Electrocardiogram (ECG)", "ekg": "Electrocardiogram (ECG)", "tb": "Tuberculosis", "uti": "Urinary tract infection", "copd": "Chronic obstructive pulmonary disease (COPD)", "pcos": "Polycystic ovary syndrome (PCOS)", "pcod": "Polycystic ovary syndrome (PCOS)", "gerd": "Gastroesophageal reflux disease (GERD)", "acidity": "Gastroesophageal reflux disease (GERD)", "crocin": "Paracetamol (acetaminophen)", "dolo": "Paracetamol (acetaminophen)", "tylenol": "Paracetamol (acetaminophen)", "augmentin": "Amoxicillin-clavulanate", "lipitor": "Atorvastatin", "ozempic": "Semaglutide", "thyronorm": "Levothyroxine", "eltroxin": "Levothyroxine", "dvt": "Deep vein thrombosis", "afib": "Atrial fibrillation", "ckd": "Chronic kidney disease", "ra": "Rheumatoid arthritis", "sle": "Systemic lupus erythematosus", "lupus": "Systemic lupus erythematosus", "flu": "Influenza", "covid": "COVID-19", "dka": "Diabetic ketoacidosis", "mi": "Myocardial infarction", "inr": "Prothrombin time / INR", "pt inr": "Prothrombin time / INR", "esr": "Erythrocyte sedimentation rate (ESR)", "crp": "C-reactive protein (CRP)", "psa": "PSA (prostate-specific antigen)", "tsh": "TSH", "eczema": "Atopic dermatitis (eczema)", "fatty liver": "Fatty liver disease (MASLD)", "nafld": "Fatty liver disease (MASLD)", "ventolin": "Salbutamol (albuterol)", "asthalin": "Salbutamol (albuterol)", "xray": "Chest X-ray", "x-ray": "Chest X-ray" };
+  const byTerm = Object.fromEntries(INDEX.map(x => [x.term, x]));
+
+  function looksLikeQuestion(q) { return /\?$|^(what|why|how|when|which|who|is|are|can|does|do|should|could|will)\b/i.test(q) || q.split(/\s+/).length > 5; }
+
+  function matchLocal(q) {
+    const s = q.toLowerCase().trim(); if (!s) return [];
+    const scored = [];
+    const seen = new Set();
+    const add = (item, score) => { if (!seen.has(item.term)) { seen.add(item.term); scored.push({ item, score }); } };
+    for (const [a, t] of Object.entries(ALIASES)) if (a === s || (s.length >= 2 && a.startsWith(s))) add(byTerm[t], a === s ? 0 : 1);
+    for (const item of INDEX) {
+      const t = item.term.toLowerCase();
+      if (t.startsWith(s)) add(item, 2);
+      else if (t.split(/[\s(/,-]+/).some(w => w && w.startsWith(s))) add(item, 3);
+      else if (s.length >= 3 && t.includes(s)) add(item, 4);
+      else if (s.length >= 4 && item.note.toLowerCase().includes(s)) add(item, 6);
+    }
+    // words-in-any-order match for multi-word input ("blood sugar test")
+    const words = s.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 1) for (const item of INDEX) {
+      const hay = (item.term + " " + item.note).toLowerCase();
+      if (words.every(w => hay.includes(w))) add(item, 5);
+    }
+    return scored.sort((a, b) => a.score - b.score || a.item.term.length - b.item.term.length).slice(0, 7).map(x => x.item);
+  }
+
+  // ---------- Suggestion panel ----------
+  const input = $("#q"), panel = $("#sugg"), list = $("#suggList"), aiBlock = $("#aiBlock");
+  let opts = [], active = -1, aiTimer = null, aiCtl = null, aiAllowed = true;
+  const RKEY = "medquery.recent";
+  const getRecent = () => { try { return JSON.parse(localStorage.getItem(RKEY) || "[]"); } catch { return []; } };
+  function pushRecent(q) { try { localStorage.setItem(RKEY, JSON.stringify([q, ...getRecent().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 6))); } catch {} }
+
+  function highlight(term, q) {
+    const i = term.toLowerCase().indexOf(q.toLowerCase().trim());
+    if (!q.trim() || i < 0) return [term];
+    return [term.slice(0, i), el("mark", { text: term.slice(i, i + q.trim().length) }), term.slice(i + q.trim().length)];
+  }
+  function optionRow(o, q, idx) {
+    const k = KINDS[o.kind] || KINDS.question;
+    const li = el("li", { class: "opt", role: "option", id: "opt" + idx, "aria-selected": "false" },
+      picture(o.sys, o.kind),
+      el("div", { class: "opt-text" }, el("div", { class: "opt-term" }, ...highlight(o.term, q)), el("div", { class: "opt-sub", text: o.note || "" })),
+      el("div", { class: "opt-kind" }, el("i", { class: "cap", style: "background:" + k.color }), el("span", { text: k.label }))
+    );
+    li.addEventListener("mousedown", e => e.preventDefault());
+    li.addEventListener("click", () => choose(o));
+    li.addEventListener("mousemove", () => setActive(idx));
+    return li;
+  }
+  function openPanel(on) { panel.hidden = !on; document.body.classList.toggle("open", on); input.setAttribute("aria-expanded", String(on)); }
+  function setActive(i) {
+    active = i;
+    [...panel.querySelectorAll(".opt")].forEach((n, j) => n.setAttribute("aria-selected", String(j === i)));
+    const n = panel.querySelector("#opt" + i);
+    if (n) { input.setAttribute("aria-activedescendant", n.id); n.scrollIntoView({ block: "nearest" }); } else input.removeAttribute("aria-activedescendant");
+  }
+  function renderPanel(q, aiItems, aiState) {
+    list.replaceChildren(); aiBlock.replaceChildren();
+    const s = q.trim();
+    if (!s) {
+      const rec = getRecent();
+      if (!rec.length) { openPanel(false); opts = []; return; }
+      $("#suggTitle").textContent = "Recent searches";
+      const clr = el("button", { class: "clear-hist", type: "button", id: "clearHist", text: "Clear history", "aria-label": "Clear search history on this device" });
+      clr.addEventListener("mousedown", e => e.preventDefault());
+      clr.addEventListener("click", () => {
+        try { localStorage.removeItem(RKEY); } catch {}
+        opts = []; list.replaceChildren(el("li", { class: "hist-cleared", role: "status", text: "Search history cleared from this device." }));
+        $("#suggHint").replaceChildren(); setTimeout(() => { if (!input.value.trim()) openPanel(false); }, 1600);
+      });
+      $("#suggHint").replaceChildren(clr);
+      opts = rec.map(t => byTerm[t] || { term: t, kind: looksLikeQuestion(t) ? "question" : "question", sys: "ask", note: "Search again" });
+      opts.forEach((o, i) => list.append(optionRow(o, "", i)));
+      openPanel(true); setActive(-1); return;
+    }
+    $("#suggTitle").textContent = "Suggestions";
+    $("#suggHint").textContent = "↑ ↓ to move · Enter to search";
+    const local = matchLocal(s);
+    const ask = { term: s, kind: "question", sys: "ask", note: looksLikeQuestion(s) ? "Ask MedQuery this question" : "Search everything for “" + s + "”", free: true };
+    const extra = (aiItems || []).filter(a => !local.some(l => l.term.toLowerCase() === a.term.toLowerCase()));
+    opts = looksLikeQuestion(s) ? [ask, ...local] : [...local, ask];
+    opts.forEach((o, i) => list.append(optionRow(o, s, i)));
+    if (aiState === "loading") aiBlock.append(el("div", { class: "divider" }, el("span", { class: "dots", text: "Finding more matches" })));
+    if (extra.length) {
+      aiBlock.append(el("div", { class: "divider", text: "More matches" }));
+      const ul = el("ul", { role: "listbox", "aria-label": "More matches" });
+      extra.forEach((o, j) => { const idx = opts.length; opts.push(o); ul.append(optionRow(o, s, idx)); });
+      aiBlock.append(ul);
+    }
+    openPanel(true); setActive(active >= opts.length ? -1 : active);
+  }
+
+  // Claude fills gaps for terms the built-in index doesn't know (rare diseases, brand names, misspellings)
+  function scheduleAi(q) {
+    clearTimeout(aiTimer); aiCtl?.abort();
+    const s = q.trim();
+    if (!aiAllowed || s.length < 3 || looksLikeQuestion(s) || matchLocal(s).length >= 4) return;
+    aiTimer = setTimeout(async () => {
+      const smp = await getSample(); if (!smp || input.value.trim() !== s) return;
+      const myCtl = aiCtl = new AbortController();
+      renderPanel(s, null, "loading");
+      try {
+        const res = await smp.json(`A user is typing into a medical search box. Partial input: """${s.slice(0, 120)}""". Suggest up to 5 real medical terms they most likely mean (correct misspellings; map brand names to generic names). Reply with ONLY a JSON array like [{"term":"Canonical name","kind":"disease|test|drug","sys":"heart|lung|brain|liver|kidney|tube|drop|pill|gut|bone|skin|eye|endo|microbe|repro|immune|dna|mind","note":"under 6 words"}]. Use sys "tube" for blood tests and "pill" for medicines. If nothing medical matches, reply [].`, { modelTier: "quick", signal: myCtl.signal });
+        if (myCtl !== aiCtl || input.value.trim() !== s) return;
+        const items = arr(res).filter(x => str(x.term) && KINDS[x.kind]).slice(0, 5).map(x => ({ term: str(x.term), kind: x.kind, sys: ICONS[x.sys] ? x.sys : "ask", note: str(x.note) }));
+        renderPanel(s, items);
+      } catch (e) {
+        if (e?.code === "cancelled") return;
+        if (["not_granted", "sampling_disabled", "not_declared", "capability_disabled", "rate_limited"].includes(e?.code)) aiAllowed = false;
+        if (input.value.trim() === s) renderPanel(s);
+      }
+    }, 550);
+  }
+
+  function choose(o) {
+    openPanel(false);
+    input.value = o.term;
+    mode = o.free ? "auto" : o.kind;
+    run(o.term);
+  }
+
+  input.addEventListener("input", () => { active = -1; renderPanel(input.value); scheduleAi(input.value); });
+  input.addEventListener("focus", () => renderPanel(input.value));
+  input.addEventListener("blur", () => setTimeout(() => openPanel(false), 120));
+  input.addEventListener("keydown", e => {
+    if (panel.hidden && e.key === "ArrowDown") { renderPanel(input.value); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(Math.min(active + 1, opts.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(Math.max(active - 1, -1)); }
+    else if (e.key === "Escape") { e.preventDefault(); openPanel(false); }
+    else if (e.key === "Enter" && active >= 0 && opts[active] && !panel.hidden) { e.preventDefault(); choose(opts[active]); }
+  });
+
+  // ---------- Care near you + emergency call ----------
+  // Emergency numbers (general / ambulance). Kept short and well-established; shown with a "dial yourself" fallback.
+  const EMERGENCY = {
+    india: ["India", "112", "108"], "united states": ["United States", "911", "911"], usa: ["United States", "911", "911"], "united kingdom": ["United Kingdom", "999", "999"], uk: ["United Kingdom", "999", "999"], england: ["United Kingdom", "999", "999"], scotland: ["United Kingdom", "999", "999"], wales: ["United Kingdom", "999", "999"],
+    canada: ["Canada", "911", "911"], australia: ["Australia", "000", "000"], "new zealand": ["New Zealand", "111", "111"], ireland: ["Ireland", "112", "112"], germany: ["Germany", "112", "112"], france: ["France", "112", "15"], spain: ["Spain", "112", "112"], italy: ["Italy", "112", "118"], netherlands: ["Netherlands", "112", "112"],
+    uae: ["United Arab Emirates", "999", "998"], "united arab emirates": ["United Arab Emirates", "999", "998"], dubai: ["United Arab Emirates", "999", "998"], "saudi arabia": ["Saudi Arabia", "911", "997"], qatar: ["Qatar", "999", "999"], singapore: ["Singapore", "999", "995"], malaysia: ["Malaysia", "999", "999"],
+    pakistan: ["Pakistan", "15", "1122"], bangladesh: ["Bangladesh", "999", "999"], nepal: ["Nepal", "100", "102"], "sri lanka": ["Sri Lanka", "119", "1990"], japan: ["Japan", "110", "119"], china: ["China", "110", "120"], philippines: ["Philippines", "911", "911"], indonesia: ["Indonesia", "112", "118"],
+    "south africa": ["South Africa", "112", "10177"], kenya: ["Kenya", "999", "999"], nigeria: ["Nigeria", "112", "112"], brazil: ["Brazil", "190", "192"], mexico: ["Mexico", "911", "911"]
+  };
+  const INDIA_PLACES = /\b(mumbai|delhi|new delhi|bengaluru|bangalore|chennai|kolkata|hyderabad|pune|ahmedabad|kochi|cochin|thiruvananthapuram|trivandrum|kerala|tamil nadu|karnataka|maharashtra|gujarat|jaipur|lucknow|chandigarh|bhopal|indore|nagpur|patna|guwahati|coimbatore|mysuru|mysore|noida|gurgaon|gurugram|kozhikode|calicut|thrissur|madurai|visakhapatnam|vizag|bhubaneswar|goa|surat|vadodara|kanpur|varanasi|dehradun|ranchi|raipur|vellore|manipal|mangaluru|mangalore)\b/i;
+  function emergencyFor(loc, country) {
+    const s = (str(country) + " " + str(loc)).toLowerCase();
+    for (const [k, v] of Object.entries(EMERGENCY)) if (new RegExp("\\b" + k + "\\b").test(s)) return v;
+    if (INDIA_PLACES.test(s)) return EMERGENCY.india;
+    try { if (/Calcutta|Kolkata/.test(Intl.DateTimeFormat().resolvedOptions().timeZone) && !str(loc)) return EMERGENCY.india; } catch {}
+    return null;
+  }
+  const LOCKEY = "medquery.location";
+  let careLoc = (() => { try { return localStorage.getItem(LOCKEY) || ""; } catch { return ""; } })();
+  let careCtl = null, careFor = null, careSpec = "";
+  // Address of the hosted MedQuery Care Map (set after it is published). Empty = button hidden.
+  const CARE_MAP_URL = "";
+  function updateMapLink() {
+    const a = document.getElementById("mapLink"); if (!a) return;
+    if (!CARE_MAP_URL) { a.hidden = true; return; }
+    const u = new URL(CARE_MAP_URL);
+    if (careLoc) u.searchParams.set("loc", careLoc);
+    if (careFor) u.searchParams.set("q", careFor.title);
+    if (careSpec) u.searchParams.set("spec", careSpec);
+    u.searchParams.set("home", "https://claude.ai/artifact/6oTi5orvxdrwWaz4LJsSX4");
+    a.href = u.toString(); a.hidden = false;
+  }
+  const telHref = n => "tel:" + String(n).replace(/[^\d+]/g, "");
+  function copyBtn(text, label) {
+    const b = el("button", { class: "mini", type: "button", text: label || "Copy" });
+    b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { const r = document.createRange(); r.selectNodeContents(b.previousSibling || b); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Selected"; } setTimeout(() => b.textContent = label || "Copy", 1800); });
+    return b;
+  }
+  // Red emergency call button on the home page (and on phones, where the side panel sits below the answer)
+  function updateSosFab() {
+    let fab = document.getElementById("sosFab");
+    const em = emergencyFor(careLoc) || ["your area", "112", "112"];
+    if (!fab) { fab = el("a", { id: "sosFab", class: "sos-fab" }); document.body.append(fab); }
+    fab.href = telHref(em[1]);
+    fab.setAttribute("aria-label", "Call emergency services, " + em[1]);
+    fab.replaceChildren(el("span", { class: "sos-fab-icon", "aria-hidden": "true", text: "✆" }), el("span", { class: "sos-fab-text" }, el("b", { text: "Emergency " + em[1] }), el("small", { text: "Tap to call" })));
+  }
+  const CARE_COLLAPSE_KEY = "medquery.careCollapsed";
+  const careCollapsed = () => { try { return localStorage.getItem(CARE_COLLAPSE_KEY) === "1"; } catch { return false; } };
+  function renderEmergency(box, em) {
+    const qc = document.getElementById("careQuickCall");
+    if (qc) { const n = (em || ["", "112"])[1]; qc.href = telHref(n); qc.textContent = "✆ " + n; qc.setAttribute("aria-label", "Call emergency services " + n); }
+    box.replaceChildren();
+    if (!em) { box.append(el("p", { class: "care-note", text: "Enter your city to show the emergency number for your area." })); return; }
+    const [country, general, amb] = em;
+    box.append(
+      el("a", { class: "sos", href: telHref(general), "aria-label": "Call emergency services " + general },
+        el("span", { class: "sos-icon", "aria-hidden": "true", text: "✆" }),
+        el("span", {}, el("b", { text: "Call " + general }), el("small", { text: "Emergency · " + country }))),
+      el("div", { class: "sos-row" },
+        amb && amb !== general ? el("a", { class: "sos-alt", href: telHref(amb), text: "Ambulance " + amb }) : null,
+        el("span", { class: "sos-num", text: general }), copyBtn(general, "Copy number")),
+      el("p", { class: "care-note", text: "On a phone this opens your dialer with the number filled in. If nothing happens, dial " + general + " yourself." })
+    );
+  }
+  // Directions app the viewer prefers (remembered on this device)
+  const MAPAPP_KEY = "medquery.mapApp";
+  const MAP_APPS = {
+    google: { label: "Google Maps", url: p => "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(p.dest) },
+    apple: { label: "Apple Maps", url: p => "https://maps.apple.com/?dirflg=d&daddr=" + encodeURIComponent(p.dest) },
+    waze: { label: "Waze", url: p => "https://waze.com/ul?navigate=yes&q=" + encodeURIComponent(p.dest) },
+    osm: { label: "OpenStreetMap", url: p => p.lat != null && careOrigin ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${careOrigin.lat},${careOrigin.lon};${p.lat},${p.lon}` : "https://www.openstreetmap.org/search?query=" + encodeURIComponent(p.dest) }
+  };
+  let mapApp = (() => { try { const v = localStorage.getItem(MAPAPP_KEY); return MAP_APPS[v] ? v : ""; } catch { return ""; } })();
+  if (!mapApp) mapApp = /iPhone|iPad|Macintosh/.test(navigator.userAgent) ? "apple" : "google";
+  const CARE_SORTS = {
+    distance: ["Nearest first", (a, b) => (a.km ?? 1e9) - (b.km ?? 1e9)],
+    emergency: ["24-hour emergency first", (a, b) => (b.er - a.er) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    specialty: ["Matches your search first", (a, b) => (b.match - a.match) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    beds: ["Largest (most beds) first", (a, b) => (b.beds - a.beds) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    public: ["Government first", (a, b) => (b.gov - a.gov) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    private: ["Private first", (a, b) => (b.priv - a.priv) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    phone: ["Has 24/7 number first", (a, b) => (!!b.phone - !!a.phone) || (a.km ?? 1e9) - (b.km ?? 1e9)],
+    name: ["Name A–Z", (a, b) => a.name.localeCompare(b.name)]
+  };
+  let careSort = "distance", carePlaces = [], careOrigin = null, careTypeTimer = null;
+  const kmBetween = (a, b) => { const r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon); const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
+  const fmtKm = km => km == null ? "" : km < 1 ? "≈ " + Math.max(100, Math.round(km * 10) * 100) + " m" : "≈ " + (km < 10 ? km.toFixed(1) : Math.round(km)) + " km";
+
+  function renderCare() {
+    const host = $("#care"); if (!host) return;
+    host.replaceChildren();
+    const em = emergencyFor(careLoc);
+    const emBox = el("div", { class: "sos-box", id: "sosBox" }); renderEmergency(emBox, em);
+    const inp = el("input", { id: "careLoc", type: "search", placeholder: "Type your area, e.g. Edappally, Kochi", value: careLoc, "aria-label": "Your area or address", autocomplete: "street-address" });
+    const form = el("form", { class: "care-form" }, inp, el("button", { type: "submit", text: "Find care" }));
+    const list = el("div", { class: "care-list", id: "careList", "aria-live": "polite" });
+    const go = () => { careLoc = inp.value.trim(); try { localStorage.setItem(LOCKEY, careLoc); } catch {} updateMapLink(); renderEmergency(emBox, emergencyFor(careLoc)); if (careLoc) findCare(); };
+    form.addEventListener("submit", e => { e.preventDefault(); clearTimeout(careTypeTimer); go(); });
+    // typing an area searches automatically after a short pause
+    inp.addEventListener("input", () => { clearTimeout(careTypeTimer); if (inp.value.trim().length >= 4 && inp.value.trim() !== careLoc) careTypeTimer = setTimeout(go, 1400); });
+    const sortSel = el("select", { id: "careSort", "aria-label": "Sort hospitals" }); for (const [k, [label]] of Object.entries(CARE_SORTS)) sortSel.append(el("option", { value: k, text: label })); sortSel.value = careSort;
+    sortSel.addEventListener("change", () => { careSort = sortSel.value; drawCareList(); });
+    const appSel = el("select", { id: "careApp", "aria-label": "Open directions in" }); for (const [k, v] of Object.entries(MAP_APPS)) appSel.append(el("option", { value: k, text: v.label })); appSel.value = mapApp;
+    appSel.addEventListener("change", () => { mapApp = appSel.value; try { localStorage.setItem(MAPAPP_KEY, mapApp); } catch {} drawCareList(); });
+    const tools = el("div", { class: "care-tools", id: "careTools", hidden: "" },
+      el("label", { class: "care-tool", for: "careSort" }, el("span", { text: "Sort" }), sortSel),
+      el("label", { class: "care-tool", for: "careApp" }, el("span", { text: "Directions in" }), appSel));
+    const mapLink = el("a", { class: "map-link", id: "mapLink", target: "_blank", rel: "noopener", hidden: "" }, el("span", { "aria-hidden": "true", text: "🗺" }), " Open live map: pin your exact spot, nearest first");
+    const collapsed = careCollapsed();
+    const toggle = el("button", { class: "care-toggle", type: "button", id: "careToggle", "aria-expanded": String(!collapsed), "aria-controls": "careBody" },
+      el("span", { class: "care-title", text: "Care near you" }), el("span", { class: "care-chev", "aria-hidden": "true" }));
+    const quick = el("a", { class: "care-quickcall", id: "careQuickCall", href: telHref((em || ["", "112"])[1]), "aria-label": "Call emergency services " + (em || ["", "112"])[1] }, "✆ " + (em || ["", "112"])[1]);
+    const body = el("div", { class: "care-body", id: "careBody" }, emBox, form, mapLink, tools, list);
+    body.hidden = collapsed; host.classList.toggle("is-collapsed", collapsed);
+    toggle.addEventListener("click", () => {
+      const now = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!now)); body.hidden = now; host.classList.toggle("is-collapsed", now);
+      try { localStorage.setItem(CARE_COLLAPSE_KEY, now ? "1" : "0"); } catch {}
+      if (!now) inp.focus({ preventScroll: true });
+    });
+    host.append(el("div", { class: "care-head" }, toggle, quick), body);
+    updateMapLink();
+    if (!careFor && !careLoc) list.append(el("p", { class: "care-note", text: "Type your area to see the nearest hospitals with 24-hour emergency care. Search a condition to see specialists for it." }));
+    else if (!careLoc) list.append(el("p", { class: "care-note", text: "Type your area to see hospitals and clinics for " + careFor.title + "." }));
+  }
+
+  function drawCareList() {
+    const list = $("#careList"); if (!list) return;
+    list.replaceChildren();
+    const tools = $("#careTools"); if (tools) tools.hidden = !carePlaces.length;
+    const items = [...carePlaces].sort(CARE_SORTS[careSort]?.[1] || CARE_SORTS.distance[1]);
+    for (const p of items) {
+      const app = MAP_APPS[mapApp] || MAP_APPS.google;
+      const phoneEl = p.phone ? el("span", { class: "ph-num", text: p.phone }) : null;
+      list.append(el("div", { class: "place" },
+        el("div", { class: "place-top" }, el("div", { class: "place-name", text: p.name }), p.km != null ? el("span", { class: "place-km", text: fmtKm(p.km) }) : null),
+        el("div", { class: "place-area", text: p.address || "Address not confirmed. Use Directions to find it." }),
+        p.phone ? el("div", { class: "place-phone" }, el("span", { class: "ph-label", text: "24/7 " + (p.phoneLabel || "line") + ":" }), phoneEl) : el("div", { class: "place-phone muted", text: "No confirmed 24/7 number. Check the hospital's listing in your map app." }),
+        el("div", { class: "place-actions" },
+          el("a", { class: "pa pa-dir", href: app.url(p), target: "_blank", rel: "noopener", "aria-label": "Directions to " + p.name + " in " + app.label }, "➤ Directions"),
+          p.phone ? el("a", { class: "pa pa-call", href: telHref(p.phone), "aria-label": "Call " + p.name + " " + p.phone }, "✆ Call") : null,
+          p.phone ? copyBtn(p.phone, "Copy number") : null)));
+    }
+  }
+
+  async function findCare() {
+    const list = $("#careList"); if (!list || !careLoc) return;
+    const topic = careFor || { title: "general and emergency medical care", kind: "general" };
+    careCtl?.abort(); const my = careCtl = new AbortController();
+    carePlaces = []; const tools = $("#careTools"); if (tools) tools.hidden = true;
+    list.replaceChildren(el("p", { class: "care-note", text: "Finding hospitals near " + careLoc + "…" }));
+    const s = await getSample();
+    if (!s) { list.replaceChildren(mapsFallback()); return; }
+    const what = topic.kind === "general" ? "major hospitals with a 24-hour emergency department" : topic.kind === "test" ? "labs or diagnostic centres that do this test (or hospitals with one)" : topic.kind === "drug" ? "hospitals or clinics whose specialists prescribe and monitor this medicine" : "hospitals or clinics that treat this";
+    try {
+      const res = await s.json(`A user is at "${careLoc.slice(0, 120)}" and searched a medical reference for "${topic.title.slice(0, 100)}" (kind: ${topic.kind}). List up to 6 REAL, well-established ${what}, the nearest to that location first. Only include places you are confident exist. Never invent a facility, address, coordinates or phone number.
+For each give: full street address; approximate latitude/longitude of the facility; and a phone number ONLY if you are highly confident it is an active line answered 24/7 (emergency, casualty or main 24-hour helpline), else "". Also estimate the latitude/longitude of the user's typed location.
+Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility names and addresses as written locally.)" : ""}: {"origin": {"lat": 0, "lon": 0, "certain": true}, "country": "", "emergency": {"general": "", "ambulance": ""}, "places": [{"name": "", "address": "full street address with area and city", "lat": 0, "lon": 0, "phone24": "", "phoneLabel": "e.g. emergency, casualty, helpline", "emergency24h": true, "sector": "government|private|trust|unknown", "beds": 0, "specialtyMatch": true, "department": "relevant department"}], "note": "one short caution if the location is unclear, else ''"}`, { modelTier: "default", signal: my.signal, cache: { gcTime: 6 * 3600 * 1000 } });
+      if (my !== careCtl) return;
+      const em = emergencyFor(careLoc, res?.country) || (str(res?.emergency?.general) && /^[\d+]{2,6}$/.test(str(res.emergency.general)) ? [str(res.country) || "your area", str(res.emergency.general), str(res.emergency.ambulance) || str(res.emergency.general)] : null);
+      renderEmergency($("#sosBox"), em);
+      const okLL = (la, lo) => isFinite(la) && isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && !(la === 0 && lo === 0);
+      const o = res?.origin; careOrigin = o && okLL(+o.lat, +o.lon) ? { lat: +o.lat, lon: +o.lon } : null;
+      carePlaces = arr(res?.places).filter(p => str(p.name)).slice(0, 6).map(p => {
+        const lat = +p.lat, lon = +p.lon, has = okLL(lat, lon);
+        const phone = str(p.phone24).replace(/[^\d+\-\s()]/g, "").trim();
+        return { name: str(p.name), address: str(p.address), lat: has ? lat : null, lon: has ? lon : null,
+          km: has && careOrigin ? kmBetween(careOrigin, { lat, lon }) : null,
+          phone: phone.replace(/\D/g, "").length >= 3 ? phone : "", phoneLabel: str(p.phoneLabel),
+          er: !!p.emergency24h, gov: str(p.sector) === "government", priv: str(p.sector) === "private", beds: +p.beds || 0, match: !!p.specialtyMatch,
+          department: str(p.department), dest: [str(p.name), str(p.address)].filter(Boolean).join(", ") };
+      });
+      careSpec = careFor && careFor.kind !== "general" ? [...new Set(carePlaces.map(p => p.department.toLowerCase()).filter(d => d && !/general|emergency|internal/.test(d)))].join(",") : "";
+      updateMapLink();
+      if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: str(res?.note) || "No well-known hospital found for that area. Try a nearby city name." }), mapsFallback()); return; }
+      drawCareList();
+      list.append(el("p", { class: "care-note", text: (str(res?.note) ? str(res.note) + " " : "") + "Distances are approximate. Suggested from general knowledge, not a live directory: confirm numbers before relying on them. In an emergency, call " + ((em || ["", "112"])[1]) + "." }), mapsFallback(true));
+    } catch (e) {
+      if (e?.code === "cancelled") return;
+      list.replaceChildren(el("p", { class: "care-note", text: e?.code === "not_granted" ? "Claude access was not allowed, so suggestions can't be shown." : "Couldn't load hospitals. Use the map search instead." }), mapsFallback());
+    }
+  }
+  function mapsFallback(small) {
+    const term = careFor ? (careFor.kind === "test" ? careFor.title + " lab" : careFor.title + " hospital") : "hospital";
+    return el("a", { class: small ? "care-more" : "mini", href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(term + " near " + careLoc), target: "_blank", rel: "noopener", text: "See more on Google Maps ↗" });
+  }
+  function setCareTopic(d) { careFor = d ? { title: str(d.title), kind: str(d.kind) } : null; placeCare(); renderCare(); if (careLoc) findCare(); }
+  // One "Care near you" panel: under the search bar on the home page, in the side column with an answer
+  function placeCare() {
+    const care = $("#care"); if (!care) return;
+    const home = !document.body.classList.contains("has-results");
+    const target = home ? $("#homeCare") : $(".rail");
+    if (home) { if (care.parentElement !== target) target.append(care); }
+    else if (target.firstElementChild !== care) target.prepend(care);
+  }
+
+  // ---------- Home + "What is MedQuery?" widget ----------
+  let aboutTurns = [], aboutCtl = null;
+  const ABOUT_RULES = `You are the help assistant inside MedQuery, a free medical reference website. Answer questions about what MedQuery is and how to use it, briefly (under 80 words), in plain language. Facts about MedQuery: one search bar for diseases (definition, pathology, symptoms, causes, tests, safe home remedies with allergen warnings, prevention, treatments with rough costs), medical tests (every element tested with normal values, plus a box to enter age/sex/pregnancy for personal ranges) and medicines (uses, side effects, cautions, interactions); any medical question can be asked; answers are quick by default with a "Show the detailed version" button; highlight any word in an answer to see its meaning; answers are based on free, open-access medical sources and say when evidence is uncertain; a "Care near you" panel suggests hospitals and clinics for your city and has an emergency call button; it is general information, not a diagnosis, and never replaces a doctor. If the user asks a medical question, give a one-line pointer and suggest they type it in the search bar.`;
+  function openAbout() {
+    let w = $("#about");
+    if (w) { w.hidden = false; w.querySelector("input")?.focus(); return; }
+    const log = el("div", { class: "about-log", id: "aboutLog", "aria-live": "polite" });
+    const inp = el("input", { id: "aboutQ", type: "text", placeholder: "Ask anything about MedQuery", "aria-label": "Ask about MedQuery" });
+    const form = el("form", { class: "about-form" }, inp, el("button", { type: "submit", text: "Ask" }));
+    w = el("section", { class: "about", id: "about", role: "dialog", "aria-label": "What is MedQuery?" },
+      el("div", { class: "about-head" }, el("div", { class: "about-title" }, "What is ", el("span", { class: "about-brand no-tr" }, "Med", el("span", { text: "Query" })), "?"),
+        el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: () => { aboutCtl?.abort(); w.hidden = true; } })),
+      el("p", { class: "about-lede", text: "MedQuery is a free search engine for health information. Type a disease, a medical test, a medicine or any health question, and get a short, plain-language answer drawn from free, trusted medical sources." }),
+      el("ul", { class: "about-list" },
+        el("li", { text: "Diseases: what they are, symptoms, causes, tests, prevention and treatment costs" }),
+        el("li", { text: "Tests: everything measured and the normal values for you" }),
+        el("li", { text: "Medicines: what they do, side effects and cautions" }),
+        el("li", { text: "Hospitals near you and a one-tap emergency call" })),
+      el("p", { class: "about-warn", text: "It explains and guides. It does not diagnose. Always see a doctor for medical decisions." }),
+      log, form);
+    form.addEventListener("submit", async e => {
+      e.preventDefault(); const v = inp.value.trim(); if (!v) return; inp.value = "";
+      log.append(el("div", { class: "msg me", text: v }));
+      const bubble = el("div", { class: "msg bot", text: "Thinking…" }); log.append(bubble); log.scrollTop = log.scrollHeight;
+      const s = await getSample();
+      if (!s) { bubble.textContent = "Answers need Claude, which only runs when this page is opened in Claude."; return; }
+      aboutTurns.push({ role: "user", content: v });
+      aboutCtl?.abort(); const my = aboutCtl = new AbortController();
+      try {
+        const { text } = await s([{ role: "user", content: ABOUT_RULES + LANG_NOTE().replace("every human-readable text value", "your reply") }, ...aboutTurns.slice(-8)], { modelTier: "quick", cache: false, signal: my.signal, onText: ({ text }) => { bubble.textContent = text; log.scrollTop = log.scrollHeight; } });
+        aboutTurns.push({ role: "assistant", content: text });
+      } catch (err) { aboutTurns.pop(); if (err?.code !== "cancelled") bubble.textContent = err?.code === "not_granted" ? "Claude access was not allowed, so questions can't be answered here." : "Couldn't answer just now. Try again."; }
+    });
+    document.body.append(w);
+    inp.focus({ preventScroll: true });
+  }
+  function goHome() {
+    ctl?.abort(); careCtl?.abort(); hidePop();
+    $("#results").hidden = true; document.body.classList.remove("has-results");
+    input.value = ""; mode = "auto"; openPanel(false);
+    closeZoom(); setCareTopic(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  const logo = $("#homeLink");
+  // Click = home button. Selecting the name with the cursor = "What is MedQuery?" widget.
+  const logoSelected = () => { const sel = getSelection(); if (!sel || sel.isCollapsed || !sel.rangeCount) return false; return logo.contains(sel.anchorNode) || logo.contains(sel.focusNode); };
+  logo.addEventListener("click", () => { if (logoSelected()) return; goHome(); });
+  logo.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goHome(); } });
+  let logoSelTimer = null;
+  document.addEventListener("selectionchange", () => {
+    clearTimeout(logoSelTimer);
+    logoSelTimer = setTimeout(() => {
+      const sel = getSelection(); if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+      if (logoSelected() && sel.toString().trim().length >= 2) openAbout();
+    }, 350);
+  });
+
+  placeCare(); renderCare(); if (careLoc) findCare();
+
+  // ---------- Translate: whole-page language support ----------
+  const LANGS = [["en","English","English"],["hi","Hindi","हिन्दी"],["bn","Bengali","বাংলা"],["te","Telugu","తెలుగు"],["mr","Marathi","मराठी"],["ta","Tamil","தமிழ்"],["ur","Urdu","اردو"],["gu","Gujarati","ગુજરાતી"],["kn","Kannada","ಕನ್ನಡ"],["ml","Malayalam","മലയാളം"],["or","Odia","ଓଡ଼ିଆ"],["pa","Punjabi","ਪੰਜਾਬੀ"],["as","Assamese","অসমীয়া"],["mai","Maithili","मैथिली"],["sa","Sanskrit","संस्कृतम्"],["ks","Kashmiri","कॉशुर"],["ne","Nepali","नेपाली"],["sd","Sindhi","سنڌي"],["kok","Konkani","कोंकणी"],["doi","Dogri","डोगरी"],["mni","Manipuri (Meitei)","ꯃꯤꯇꯩꯂꯣꯟ"],["sat","Santali","ᱥᱟᱱᱛᱟᱲᱤ"],["brx","Bodo","बड़ो"],["si","Sinhala","සිංහල"],["dv","Dhivehi","ދިވެހި"],
+    ["es","Spanish","Español"],["fr","French","Français"],["de","German","Deutsch"],["pt","Portuguese","Português"],["it","Italian","Italiano"],["nl","Dutch","Nederlands"],["ru","Russian","Русский"],["uk","Ukrainian","Українська"],["pl","Polish","Polski"],["cs","Czech","Čeština"],["sk","Slovak","Slovenčina"],["sl","Slovenian","Slovenščina"],["hr","Croatian","Hrvatski"],["sr","Serbian","Српски"],["bs","Bosnian","Bosanski"],["mk","Macedonian","Македонски"],["bg","Bulgarian","Български"],["ro","Romanian","Română"],["hu","Hungarian","Magyar"],["el","Greek","Ελληνικά"],["sq","Albanian","Shqip"],["lt","Lithuanian","Lietuvių"],["lv","Latvian","Latviešu"],["et","Estonian","Eesti"],["fi","Finnish","Suomi"],["sv","Swedish","Svenska"],["no","Norwegian","Norsk"],["da","Danish","Dansk"],["is","Icelandic","Íslenska"],["ga","Irish","Gaeilge"],["cy","Welsh","Cymraeg"],["gd","Scottish Gaelic","Gàidhlig"],["eu","Basque","Euskara"],["ca","Catalan","Català"],["gl","Galician","Galego"],["mt","Maltese","Malti"],["lb","Luxembourgish","Lëtzebuergesch"],["be","Belarusian","Беларуская"],
+    ["ar","Arabic","العربية"],["he","Hebrew","עברית"],["fa","Persian","فارسی"],["tr","Turkish","Türkçe"],["ku","Kurdish (Kurmanji)","Kurdî"],["ckb","Kurdish (Sorani)","کوردی"],["ps","Pashto","پښتو"],["az","Azerbaijani","Azərbaycan"],["hy","Armenian","Հայերեն"],["ka","Georgian","ქართული"],["kk","Kazakh","Қазақ"],["uz","Uzbek","Oʻzbek"],["ky","Kyrgyz","Кыргызча"],["tg","Tajik","Тоҷикӣ"],["tk","Turkmen","Türkmen"],["mn","Mongolian","Монгол"],["ug","Uyghur","ئۇيغۇرچە"],
+    ["zh-CN","Chinese (Simplified)","简体中文"],["zh-TW","Chinese (Traditional)","繁體中文"],["yue","Cantonese","粵語"],["ja","Japanese","日本語"],["ko","Korean","한국어"],["vi","Vietnamese","Tiếng Việt"],["th","Thai","ไทย"],["lo","Lao","ລາວ"],["km","Khmer","ខ្មែរ"],["my","Burmese","မြန်မာ"],["id","Indonesian","Bahasa Indonesia"],["ms","Malay","Bahasa Melayu"],["tl","Filipino","Filipino"],["jv","Javanese","Basa Jawa"],["su","Sundanese","Basa Sunda"],["ceb","Cebuano","Cebuano"],["bo","Tibetan","བོད་ཡིག"],["dz","Dzongkha","རྫོང་ཁ"],
+    ["sw","Swahili","Kiswahili"],["am","Amharic","አማርኛ"],["ti","Tigrinya","ትግርኛ"],["om","Oromo","Afaan Oromoo"],["so","Somali","Soomaali"],["ha","Hausa","Hausa"],["yo","Yoruba","Yorùbá"],["ig","Igbo","Igbo"],["zu","Zulu","isiZulu"],["xh","Xhosa","isiXhosa"],["af","Afrikaans","Afrikaans"],["st","Sesotho","Sesotho"],["tn","Setswana","Setswana"],["sn","Shona","chiShona"],["rw","Kinyarwanda","Ikinyarwanda"],["rn","Kirundi","Ikirundi"],["lg","Luganda","Luganda"],["ny","Chichewa","Chichewa"],["mg","Malagasy","Malagasy"],["wo","Wolof","Wolof"],["ff","Fula","Fulfulde"],["ln","Lingala","Lingála"],["ak","Akan (Twi)","Akan"],["ee","Ewe","Eʋegbe"],
+    ["ht","Haitian Creole","Kreyòl ayisyen"],["qu","Quechua","Runa Simi"],["gn","Guarani","Avañe'ẽ"],["ay","Aymara","Aymar aru"],["mi","Māori","Te Reo Māori"],["sm","Samoan","Gagana Samoa"],["to","Tongan","Lea faka-Tonga"],["fj","Fijian","Na Vosa Vakaviti"],["haw","Hawaiian","ʻŌlelo Hawaiʻi"],["eo","Esperanto","Esperanto"],["la","Latin","Latina"],["yi","Yiddish","ייִדיש"],["fy","Frisian","Frysk"],["co","Corsican","Corsu"],["br","Breton","Brezhoneg"],["oc","Occitan","Occitan"]];
+  const RTL = new Set(["ar","he","fa","ur","ps","sd","ug","yi","dv","ckb","ks"]);
+  const TRKEY = "medquery.lang";
+  let lang = (() => { try { return localStorage.getItem(TRKEY) || "en"; } catch { return "en"; } })();
+  if (!LANGS.some(l => l[0] === lang)) lang = "en";
+  const langInfo = () => LANGS.find(l => l[0] === lang) || LANGS[0];
+  // Instruction appended to every Claude prompt so answers are written directly in the chosen language
+  const LANG_NOTE = () => lang === "en" ? "" : `\nLANGUAGE: Write every human-readable text value in ${langInfo()[1]} (${langInfo()[2]}). Keep JSON keys and fixed enum values (kind, confidence, sys, booleans, numbers) in English. For key medical terms you may add the English term in brackets once.`;
+  const aiStrings = new Set();
+  function registerAI(v) { if (typeof v === "string") { const s = v.trim(); if (s.length >= 4) aiStrings.add(s); } else if (Array.isArray(v)) v.forEach(registerAI); else if (v && typeof v === "object") Object.values(v).forEach(registerAI); }
+  const isAI = t => { const s = t.replace(/^[•\s📍]+/, "").trim(); if (aiStrings.has(s)) return true; if (s.length > 12) for (const a of aiStrings) if (a.length >= 12 && s.includes(a)) return true; return false; };
+  const trCache = {}; // per language: original -> translated
+  const cacheFor = code => { if (!trCache[code]) { try { trCache[code] = JSON.parse(localStorage.getItem("medquery.tr." + code) || "{}"); } catch { trCache[code] = {}; } } return trCache[code]; };
+  const saveCache = code => { try { localStorage.setItem("medquery.tr." + code, JSON.stringify(trCache[code])); } catch {} };
+  const origText = new WeakMap(), origAttr = new WeakMap();
+  const ATTRS = ["placeholder", "aria-label", "title"];
+  const SKIP = "script,style,textarea,code,[translate=no],.no-tr,#q,.sos-num";
+  const translatable = s => /[A-Za-z]{2}/.test(s) && s.trim().length > 1;
+  let trBusy = false, trQueued = false, trTimer = null, trFailed = false;
+  function scan() {
+    const pending = new Set(), dict = cacheFor(lang);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      const p = n.parentElement; if (!p || p.closest(SKIP) || p.closest("#trMenu")) continue;
+      if (!origText.has(n)) { if (!translatable(n.nodeValue) || (lang !== "en" && isAI(n.nodeValue))) continue; origText.set(n, n.nodeValue); }
+      const o = origText.get(n), key = o.trim();
+      const want = lang === "en" ? o : dict[key] != null ? o.replace(key, dict[key]) : null;
+      if (want == null) { pending.add(key); continue; }
+      if (n.nodeValue !== want) n.nodeValue = want;
+    }
+    for (const e of document.body.querySelectorAll("[placeholder],[aria-label],[title]")) {
+      if (e.closest(SKIP.replace("#q,", "")) && !e.matches("#q")) continue;
+      let o = origAttr.get(e); if (!o) { o = {}; for (const a of ATTRS) if (e.hasAttribute(a) && translatable(e.getAttribute(a))) o[a] = e.getAttribute(a); origAttr.set(e, o); }
+      for (const [a, v] of Object.entries(o)) { const want = lang === "en" ? v : dict[v.trim()]; if (want == null) pending.add(v.trim()); else if (e.getAttribute(a) !== want) e.setAttribute(a, want); }
+    }
+    return [...pending];
+  }
+  async function translatePage() {
+    if (trBusy) { trQueued = true; return; }
+    trBusy = true;
+    try {
+      let pending = scan();
+      if (lang === "en" || !pending.length) return;
+      const s = await getSample(); if (!s) { setTrStatus("Translation needs Claude, which only runs when this page is opened in Claude."); return; }
+      const code = lang, info = langInfo();
+      setTrStatus("Translating…");
+      while (pending.length && code === lang) {
+        const batch = pending.slice(0, 60); pending = pending.slice(60);
+        const out = await s.json(`Translate each English user-interface string of a medical website into ${info[1]} (${info[2]}). Keep the meaning medically accurate, natural and short. Keep numbers, units, symbols (→ ↗ · ⚠ ×), emoji, and the brand name "MedQuery" unchanged; keep proper names of hospitals, journals and drugs recognisable. Reply with ONLY a JSON array of exactly ${batch.length} strings in the same order.\n${JSON.stringify(batch)}`, { modelTier: "quick", cache: { gcTime: 24 * 3600 * 1000 } });
+        const dict = cacheFor(code);
+        if (Array.isArray(out)) batch.forEach((b, i) => { if (typeof out[i] === "string" && out[i].trim()) dict[b] = out[i]; else dict[b] = b; });
+        else batch.forEach(b => dict[b] = b);
+        saveCache(code);
+        if (code === lang) scan();
+      }
+      setTrStatus("");
+    } catch (e) {
+      trFailed = true;
+      setTrStatus(e?.code === "not_granted" ? "Claude access was not allowed, so the page can't be translated." : e?.code === "rate_limited" ? "Too many requests. Translation will continue shortly." : "Part of the page couldn't be translated. Try choosing the language again.");
+    } finally {
+      trBusy = false;
+      if (trQueued) { trQueued = false; setTimeout(translatePage, 300); }
+    }
+  }
+  const trObserver = new MutationObserver(() => { if (lang === "en") return; clearTimeout(trTimer); trTimer = setTimeout(translatePage, 250); });
+  function setTrStatus(t) { const n = document.getElementById("trStatus"); if (n) { n.textContent = t; n.hidden = !t; } }
+  function setLang(code, rerun = true) {
+    const prev = lang; lang = code;
+    try { localStorage.setItem(TRKEY, code); } catch {}
+    document.documentElement.lang = code.split("-")[0];
+    document.documentElement.dir = RTL.has(code) ? "rtl" : "ltr";
+    const b = document.getElementById("trBtn"); if (b) b.querySelector(".tr-cur").textContent = code === "en" ? "" : langInfo()[2];
+    trFailed = false;
+    if (code === "en") { trObserver.disconnect(); scan(); setTrStatus(""); }
+    else { trObserver.observe(document.body, { childList: true, subtree: true, characterData: true }); translatePage(); }
+    // re-ask the current answer in the new language
+    if (rerun && prev !== code && lastRun && !$("#results").hidden) run(lastRun.q, { ...lastRun.opts, keepMode: true });
+  }
+  function buildTranslateUI() {
+    const btn = el("button", { id: "trBtn", class: "tr-btn no-tr", type: "button", "aria-haspopup": "listbox", "aria-expanded": "false" },
+      el("span", { class: "tr-globe", "aria-hidden": "true", text: "🌐" }), el("span", { text: "Translate" }), el("span", { class: "tr-cur" }));
+    const search = el("input", { id: "trSearch", type: "search", placeholder: "Search 130+ languages", "aria-label": "Search languages", autocomplete: "off" });
+    const list = el("ul", { class: "tr-list", role: "listbox", "aria-label": "Languages" });
+    const draw = () => {
+      const q = search.value.trim().toLowerCase(); list.replaceChildren();
+      for (const [code, name, native] of LANGS) {
+        if (q && !(name.toLowerCase().includes(q) || native.toLowerCase().includes(q) || code.toLowerCase().startsWith(q))) continue;
+        const li = el("li", { role: "option", "aria-selected": String(code === lang), tabindex: "0", class: code === lang ? "on" : "" },
+          el("span", { class: "tr-native", text: native }), el("span", { class: "tr-name", text: code === "en" ? "English (original)" : name }));
+        const pick = () => { close(); if (code !== lang) setLang(code); };
+        li.addEventListener("click", pick); li.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(); } });
+        list.append(li);
+      }
+    };
+    const menu = el("div", { id: "trMenu", class: "tr-menu no-tr", hidden: "" }, search, list,
+      el("p", { class: "tr-foot", text: "Answers are written by Claude directly in the language you choose. Page labels are translated automatically." }));
+    const open = () => { menu.hidden = false; btn.setAttribute("aria-expanded", "true"); search.value = ""; draw(); search.focus(); };
+    const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+    btn.addEventListener("click", () => menu.hidden ? open() : close());
+    search.addEventListener("input", draw);
+    menu.addEventListener("keydown", e => { if (e.key === "Escape") { close(); btn.focus(); } });
+    document.addEventListener("pointerdown", e => { if (!menu.hidden && !menu.contains(e.target) && !btn.contains(e.target)) close(); });
+    const status = el("div", { id: "trStatus", class: "tr-status", role: "status", hidden: "" });
+    document.body.append(el("div", { class: "tr-wrap" }, btn, menu, status));
+  }
+  let lastRun = null;
+  buildTranslateUI();
+
+  if (lang !== "en") setLang(lang, false); else document.documentElement.lang = "en";
+
+
+  // ---------- Scan a medical report ----------
+  const GUIDE_KEY = "medquery.reportGuideSkip";
+  const repFile = el("input", { id: "repFile", type: "file", accept: "image/jpeg,image/png,image/webp,application/pdf", hidden: "" });
+  document.body.append(repFile);
+  let repCtl = null;
+  const STATUS_IMP = { critical_low: "critical", critical_high: "critical", low: "high", high: "high", borderline_low: "medium", borderline_high: "medium", normal: "normal", unknown: "info" };
+  const STATUS_LABEL = { critical_low: "Very low", critical_high: "Very high", low: "Low", high: "High", borderline_low: "Slightly low", borderline_high: "Slightly high", normal: "Normal", unknown: "No range" };
+  const STATUS_ORDER = { critical_low: 0, critical_high: 0, low: 1, high: 1, borderline_low: 2, borderline_high: 2, unknown: 3, normal: 4 };
+
+  // proceed: what happens after "I understand" (default: open the file picker; for a pasted file: analyse it)
+  function openGuide(proceed) {
+    const go = typeof proceed === "function" ? proceed : () => repFile.click();
+    let skip = false; try { skip = localStorage.getItem(GUIDE_KEY) === "1"; } catch {}
+    if (skip) { go(); return; }
+    const cb = el("input", { id: "guideSkip", type: "checkbox" });
+    const ok = el("button", { class: "guide-ok", type: "button", text: "I understand" });
+    const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "guideTitle" },
+      el("section", { class: "guide" },
+        el("div", { class: "about-head" }, el("h2", { id: "guideTitle", class: "guide-title", text: "Scan a medical report" }),
+          el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: () => close() })),
+        el("p", { class: "guide-lede", text: "MedQuery reads the lab values on your report and explains them in simple terms. For a reliable reading:" }),
+        el("div", { class: "guide-cols" },
+          el("div", { class: "guide-do" }, el("h3", { text: "Do" }), el("ul", {},
+            el("li", { text: "Upload the PDF you received from the lab or hospital." }),
+            el("li", { text: "Or upload a screenshot or a clear, flat, well-lit photo of the official printed report." }),
+            el("li", { text: "Make sure every test name, value, unit and normal range is visible." }),
+            el("li", { text: "Upload one report at a time." }),
+            el("li", { text: "Tip: you can also copy a report image or PDF and paste it into the search bar (Ctrl+V or ⌘V)." }))),
+          el("div", { class: "guide-dont" }, el("h3", { text: "Avoid" }), el("ul", {},
+            el("li", { text: "Handwritten reports, notes or prescriptions. They can't be read reliably." }),
+            el("li", { text: "Blurry, cropped or angled photos, or photos of a screen with glare." }),
+            el("li", { text: "Reports that are not lab or test results." })))),
+        el("p", { class: "guide-privacy" }, el("b", { text: "Privacy: " }), "only the lab values are used. Names, ID numbers, addresses, phone numbers and doctor details are skipped and never shown. Nothing is saved, and nothing is shared with other people who use MedQuery."),
+        el("p", { class: "guide-privacy", text: "This explains your results. It is not a diagnosis. Discuss your report with a doctor." }),
+        el("div", { class: "guide-actions" }, el("label", { class: "guide-skip", for: "guideSkip" }, cb, " Don't show this again"), ok)));
+    const close = () => { box.remove(); document.removeEventListener("keydown", onKey, true); $("#upBtn")?.focus(); };
+    const onKey = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+    ok.addEventListener("click", () => { if (cb.checked) { try { localStorage.setItem(GUIDE_KEY, "1"); } catch {} } close(); go(); });
+    box.addEventListener("click", e => { if (e.target === box) close(); });
+    document.addEventListener("keydown", onKey, true);
+    document.body.append(box); ok.focus();
+  }
+  $("#upBtn").addEventListener("click", () => openGuide());
+
+  // Paste into the search bar: a copied image or PDF becomes a report; copied text stays a normal search
+  const REPORT_TYPES = /^(image\/(jpeg|png|webp|gif)|application\/pdf)$/;
+  function toast(msg) {
+    let t = document.getElementById("mqToast");
+    if (!t) { t = el("div", { id: "mqToast", class: "mq-toast", role: "status" }); document.body.append(t); }
+    t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => { t.hidden = true; }, 4000);
+  }
+  input.addEventListener("paste", e => {
+    const dt = e.clipboardData; if (!dt) return;
+    const files = [...(dt.files || [])].filter(f => f && f.size);
+    if (!files.length) for (const it of dt.items || []) if (it.kind === "file") { const f = it.getAsFile(); if (f && f.size) files.push(f); }
+    if (!files.length) return; // plain text: let the browser paste it as a search query
+    const text = (dt.getData("text/plain") || "").trim();
+    // Office apps and web pages often attach a picture of copied TEXT; when real text came along, treat it as text.
+    // (Finder puts the file's own name in the text, so that still counts as a file.)
+    if (text && !files.some(f => f.name && text.includes(f.name))) return;
+    e.preventDefault();
+    const file = files.find(f => REPORT_TYPES.test(f.type) || /\.pdf$/i.test(f.name)) || null;
+    if (!file) { toast("Only images (JPG, PNG, WebP) or PDF reports can be pasted for analysis."); return; }
+    const t0 = document.getElementById("mqToast"); if (t0) t0.hidden = true;
+    if (files.length > 1) toast("Several files were pasted. Analysing the first report only.");
+    openPanel(false);
+    openGuide(() => analyzeReport(file));
+  });
+
+  // load PDF.js only when a PDF is chosen (main-thread worker, since pages can't start workers from other sites)
+  let pdfReady = null;
+  const loadScript = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
+  function loadPdfJs() {
+    pdfReady ||= loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js")
+      .then(() => loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"))
+      .then(() => window.pdfjsLib);
+    return pdfReady;
+  }
+  const canvasBlob = (c, q = .85) => new Promise(r => c.toBlob(b => r(b), "image/jpeg", q));
+  async function shrinkImage(file, maxSide = 2000) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+      const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement("canvas"); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+      return await canvasBlob(c);
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function readPdf(file, maxPages, wantImages) {
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const pages = Math.min(doc.numPages, Math.max(1, maxPages)), images = []; let text = "";
+    for (let i = 1; i <= Math.min(doc.numPages, 6); i++) {
+      const page = await doc.getPage(i);
+      const tc = await page.getTextContent(); text += "\n--- page " + i + " ---\n" + tc.items.map(t => t.str).join(" ");
+      if (wantImages && i <= pages) {
+        const vp1 = page.getViewport({ scale: 1 }), scale = Math.min(2.2, 1700 / vp1.width), vp = page.getViewport({ scale });
+        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: g, viewport: vp }).promise; images.push(await canvasBlob(c));
+      }
+    }
+    return { images, text: text.slice(0, 30000), numPages: doc.numPages };
+  }
+
+  repFile.addEventListener("change", () => { const f = repFile.files?.[0]; repFile.value = ""; if (f) analyzeReport(f); });
+
+  function reportPrompt(textLayer) {
+    return `You are MedQuery's lab-report reader. Read the attached medical lab report${textLayer ? " (page images and/or extracted text below)" : ""} and explain the LAB VALUES in plain language for a non-medical reader.
+PRIVACY (strict): use ONLY laboratory test data. Do NOT read out, copy, use or return any personal details: no patient name, age, date of birth, sex, ID or sample numbers, addresses, phone numbers, email, doctor, lab or hospital names, dates. Never put any of them in any field. Where a normal range depends on age/sex, use the reference range printed on the report.
+If the document is handwritten, not a lab/test report, or too unclear to read the values reliably, set "readable": false and explain why in "reason" (no personal details).
+Interpret using standard, freely accessible references (e.g. NIH MedlinePlus, StatPearls, WHO, national lab guidelines). Prefer the report's own printed reference range; if none is printed, use a widely accepted adult range and set "rangeSource": "standard". Be cautious: an inference is a possibility, not a diagnosis; say when one value alone means little. Flag dangerous values in "urgent".
+Reply with ONLY one JSON object:
+{"readable": true, "reason": "", "reportType": "e.g. Complete blood count", "summary": "2-3 plain sentences on the overall picture",
+ "urgent": "values that need prompt medical attention and why, or ''",
+ "results": [{"test": "name as printed", "value": "as printed", "unit": "", "range": "printed reference range, e.g. 12.0-15.5 or <200", "rangeSource": "report|standard|none", "status": "critical_low|low|borderline_low|normal|borderline_high|high|critical_high|unknown", "meaning": "what this test measures, one short plain sentence", "inference": "what THIS value could mean, 1-2 plain sentences, hedged", "readCertain": true}],
+ "patterns": ["what several values together could suggest, plain and hedged"],
+ "possibleDiagnoses": [{"name": "condition", "likelihood": "likely|possible|less likely", "why": "which values point to it", "confirm": "tests or steps a doctor may use to confirm"}],
+ "nextSteps": ["practical next steps, e.g. discuss with doctor, repeat test, fasting"],
+ "caveat": "one sentence on limits of reading a single report",
+ "confidence": "high|moderate|low"}
+Rules: list EVERY lab value on the report (up to 60). status "borderline" = within about 10% outside the range; "critical" = far outside or in a dangerous zone. If all values are normal, possibleDiagnoses may be [] and say so in summary. Set readCertain false for any value you could not read clearly.${LANG_NOTE()}${textLayer ? "\n\nEXTRACTED TEXT FROM THE PDF (may contain personal details: ignore them):\n" + textLayer : ""}`;
+  }
+
+  async function analyzeReport(file) {
+    closeZoom?.(); hidePop(); openPanel(false);
+    document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
+    lastRun = null; careCtl?.abort();
+    const r = $("#report"); r.replaceChildren();
+    const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+    const steps = ["Preparing your report", "Reading the lab values (personal details skipped)", "Explaining each value"];
+    const ul = el("ul", { class: "steps" }); steps.forEach((s, i) => ul.append(el("li", { class: i === 0 ? "on" : "", text: s })));
+    repCtl?.abort(); const my = repCtl = new AbortController();
+    r.append(el("div", { class: "loading" }, el("div", { class: "meta", text: "Scanning report" }), el("div", { class: "q", text: isPdf ? "PDF report" : "Report image" }), el("div", { class: "bar" }, el("i")), ul,
+      el("button", { class: "stop", type: "button", text: "Stop", onclick: () => my.abort() })));
+    $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
+    const fail = (title, msg) => { if (my !== repCtl) return; r.replaceChildren(el("div", { class: "err" }, el("div", { class: "meta", text: "Report not read" }), el("h2", { text: title, style: "font-family:var(--f-display);margin:0" }), el("p", { text: msg, style: "margin:0;color:var(--muted)" }), el("button", { class: "stop", type: "button", text: "Upload another report", onclick: openGuide }))); };
+    const s = await getSample();
+    if (!s) return fail("Report scanning is off in this view", "Reading reports needs Claude, which only runs when MedQuery is opened inside Claude.");
+    const caps = await s.limits?.().catch(() => null) || null;
+    const canImg = !!caps?.images;
+    try {
+      let images = [], textLayer = "";
+      if (isPdf) {
+        if (file.size > 25 * 1024 * 1024) return fail("That PDF is too large", "Upload a PDF under 25 MB, or a screenshot of the results page.");
+        const pdf = await readPdf(file, canImg ? caps.images.maxCount : 0, canImg);
+        images = pdf.images; textLayer = pdf.text.replace(/\s+/g, " ").trim().length > 80 ? pdf.text : "";
+        if (!images.length && !textLayer) return fail("This PDF has no readable text", "It looks like a scanned PDF, and image reading isn't available in this view. Ask the lab for the digital PDF.");
+      } else {
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return fail("That file type isn't supported", "Upload a JPG, PNG or WebP image, or a PDF.");
+        if (!canImg) return fail("Image reading isn't available here", "Your view of MedQuery can't send pictures to Claude. Upload the lab's PDF instead.");
+        images = [await shrinkImage(file)];
+      }
+      if (canImg && caps.images.maxInputBytes) images = images.filter(b => b.size <= caps.images.maxInputBytes);
+      if (my !== repCtl) return;
+      ul.children[1].classList.add("on");
+      const d = await s.json(reportPrompt(textLayer), { images: images.length ? images : undefined, modelTier: "default", cache: false, signal: my.signal, onText: () => ul.children[2].classList.add("on") });
+      if (my !== repCtl) return;
+      if (!d || typeof d !== "object") throw { code: "invalid_json" };
+      if (d.readable === false || !arr(d.results).length) return fail("This report couldn't be read reliably", str(d.reason) || "Upload the lab's PDF, or a sharper photo of the printed report. Handwritten reports can't be read.");
+      registerAI(d); renderLabReport(d);
+    } catch (e) {
+      if (my !== repCtl) return;
+      if (e?.code === "cancelled" || e?.name === "AbortError") return fail("Scan stopped", "Upload the report again whenever you like.");
+      const copy = { images_unavailable: ["Image reading isn't available here", "This view of MedQuery can't send pictures to Claude. Reload the page and allow Claude when asked, or upload the lab's PDF instead."], sampling_disabled: ["Claude is turned off for this account", "Your account or organization doesn't allow pages to use Claude, so reports can't be read here. Ask your admin to turn it on."], not_granted: ["Claude access was not allowed", "Reading reports needs permission to use Claude from this page. Reload and allow it."], rate_limited: ["Too many requests right now", "Wait a minute, then upload again."], invalid_json: ["The reading came back incomplete", "Try again, or upload a clearer copy."], refused: ["This file can't be analysed here", "Upload a lab or test report."] }[e?.code];
+      fail(...(copy || [isPdf ? "The PDF couldn't be opened" : "The report couldn't be read", "Try again, or upload a different copy of the report."]));
+    }
+  }
+
+  // numeric reference range -> gauge
+  function parseRange(rng) {
+    const s = str(rng).replace(/,/g, ".").replace(/[–—]/g, "-");
+    let m = /(-?\d*\.?\d+)\s*-\s*(-?\d*\.?\d+)/.exec(s); if (m) return { lo: +m[1], hi: +m[2] };
+    m = /(<|≤|up to|below)\s*(\d*\.?\d+)/i.exec(s); if (m) return { lo: 0, hi: +m[2] };
+    m = /(>|≥|above|over)\s*(\d*\.?\d+)/i.exec(s); if (m) return { lo: +m[2], hi: +m[2] * 2, openHi: true };
+    return null;
+  }
+  function gauge(value, rng) {
+    const v = parseFloat(str(value).replace(/,/g, "")); const r = parseRange(rng);
+    if (!isFinite(v) || !r || !(r.hi > r.lo)) return null;
+    const span = r.hi - r.lo, min = Math.min(r.lo - span * .6, v), max = Math.max(r.hi + span * .6, v);
+    const pct = x => Math.max(0, Math.min(100, (x - min) / (max - min) * 100));
+    return el("div", { class: "gauge", "aria-hidden": "true" },
+      el("div", { class: "g-track" }, el("div", { class: "g-ok", style: `left:${pct(r.lo)}%;width:${pct(r.openHi ? max : r.hi) - pct(r.lo)}%` }), el("div", { class: "g-mark", style: `left:${pct(v)}%` })),
+      el("div", { class: "g-labels" }, el("span", { style: `left:${pct(r.lo)}%`, text: String(r.lo) }), r.openHi ? null : el("span", { style: `left:${pct(r.hi)}%`, text: String(r.hi) })));
+  }
+
+  function renderLabReport(d) {
+    const r = $("#report"); r.replaceChildren();
+    const results = arr(d.results).filter(x => str(x.test)).map(x => ({ ...x, status: STATUS_IMP[x.status] ? x.status : "unknown" })).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+    const counts = results.reduce((c, x) => (c[STATUS_IMP[x.status]] = (c[STATUS_IMP[x.status]] || 0) + 1, c), {});
+    const worst = counts.critical ? "critical" : counts.high ? "high" : counts.medium ? "medium" : "normal";
+    r.append(el("div", { class: "report-head", tabindex: "0", "data-imp": str(d.urgent) ? "critical" : worst === "normal" ? "normal" : "info" },
+      el("div", { class: "meta" }, el("span", { class: "kind" }, el("i", { class: "cap", style: "background:var(--cap-test)" }), "Report analysis"), el("span", { class: "lvl", text: "Personal details skipped" })),
+      el("h2", { text: str(d.reportType) || "Your lab report" }),
+      el("p", { class: "summary", text: str(d.summary) }),
+      el("div", { class: "rep-counts" },
+        ...[["critical", "Far out of range"], ["high", "Out of range"], ["medium", "Borderline"], ["normal", "Normal"]].map(([k, l]) => el("span", { class: "imp-key", "data-imp": k }, el("i", { "aria-hidden": "true" }), (counts[k] || 0) + " " + l)))));
+    if (str(d.urgent)) r.append(el("div", { class: "alert", role: "note", "data-imp": "critical" }, el("strong", {}, el("span", { class: "h3-text", text: "Get medical advice promptly" }), impTag("critical")), str(d.urgent)));
+
+    const grid = el("div", { class: "sections lab-grid" });
+    for (const x of results) {
+      const lvl = STATUS_IMP[x.status];
+      const tag = el("span", { class: "imp-tag", text: STATUS_LABEL[x.status] });
+      grid.append(el("section", { class: "sec lab-card", tabindex: "0", "data-imp": lvl },
+        el("h3", {}, el("span", { class: "h3-text", text: str(x.test) }), tag),
+        el("div", { class: "lab-value" }, el("b", { text: str(x.value) || "—" }), " ", el("span", { text: str(x.unit) }),
+          x.readCertain === false ? el("span", { class: "lab-unsure", text: "Check this value on your report" }) : null),
+        str(x.range) ? el("div", { class: "lab-range", text: "Normal range: " + str(x.range) + " " + str(x.unit) + (x.rangeSource === "standard" ? " (typical adult range; none printed)" : "") }) : null,
+        gauge(x.value, x.range),
+        str(x.meaning) ? el("p", {}, el("b", { text: "What it measures: " }), str(x.meaning)) : null,
+        str(x.inference) ? el("p", {}, el("b", { text: "What your value could mean: " }), str(x.inference)) : null));
+    }
+    r.append(grid);
+
+    const flow = el("div", { class: "sections" });
+    if (has(d.patterns)) flow.append(el("section", { class: "sec", tabindex: "0", "data-imp": "high" }, el("h3", {}, el("span", { class: "h3-text", text: "What the values suggest together" }), impTag("high")), blist(d.patterns)));
+    const dx = arr(d.possibleDiagnoses).filter(x => str(x.name));
+    flow.append(el("section", { class: "sec", tabindex: "0", "data-imp": dx.length ? (worst === "critical" ? "critical" : "high") : "normal" },
+      el("h3", {}, el("span", { class: "h3-text", text: "Possible diagnosis" }), dx.length ? impTag(worst === "critical" ? "critical" : "high") : el("span", { class: "imp-tag", text: "Normal" })),
+      dx.length ? el("div", { class: "dx-list" }, ...dx.map(x => el("div", { class: "dx" },
+        el("div", { class: "dx-top" }, el("span", { class: "dx-name", text: str(x.name) }), el("span", { class: "dx-like", text: str(x.likelihood) })),
+        str(x.why) ? el("p", {}, el("b", { text: "Why: " }), str(x.why)) : null,
+        str(x.confirm) ? el("p", {}, el("b", { text: "To confirm: " }), str(x.confirm)) : null,
+        el("button", { class: "linkish", type: "button", text: "Learn about " + str(x.name) + " →", onclick: () => { mode = "disease"; input.value = str(x.name); run(str(x.name)); } }))))
+        : el("p", { text: "Nothing on this report points to a specific condition." }),
+      el("p", { class: "note", text: "These are possibilities based on the numbers alone, not a diagnosis. Only a doctor who knows your history and examines you can diagnose." })));
+    if (has(d.nextSteps)) flow.append(el("section", { class: "sec", tabindex: "0", "data-imp": "info" }, el("h3", {}, el("span", { class: "h3-text", text: "Next steps" }), impTag("info")), blist(d.nextSteps)));
+    r.append(flow);
+    const conf = str(d.confidence).toLowerCase();
+    if (str(d.caveat) || conf) r.append(el("div", { class: "doubt", role: "note", "data-imp": "high" }, el("strong", {}, el("span", { class: "h3-text", text: "Limits of this reading" }), impTag("high")), str(d.caveat) || "A single report gives a snapshot; results can vary with timing, hydration, medicines and the lab's methods.", conf ? el("span", { class: "doubt-more", text: " Reading confidence: " + conf + "." }) : null));
+    const again = el("div", { class: "more" }, el("button", { class: "more-btn", type: "button", onclick: openGuide }, "Scan another report", el("span", { text: "PDF or a clear photo of the printed report" })));
+    r.append(again);
+    r.append(el("div", { class: "disclaimer" }, el("b", { text: "Privacy: " }), "only lab values were used; personal details were skipped and nothing was saved. This explains your results and is not a diagnosis. In an emergency call your local emergency number."));
+    renderSources(dx.length ? str(dx[0].name) : str(d.reportType) || "lab test results");
+    setCareTopic(dx.length ? { title: str(dx[0].name), kind: "disease" } : null);
+  }
+  const lab = $("#upBtn"); if (!lab) console.warn("upload button missing");
+
+  // ---------- Run ----------
+  async function getSample() {
+    if (sampleChecked) return sample;
+    try { sample = window.claude?.use ? await window.claude.use("sample") : null; } catch { sample = null; }
+    sampleChecked = true;
+    return sample;
+  }
+
+  async function run(q, opts2 = {}) {
+    q = str(q); if (!q) return;
+    lastRun = { q, opts: { detail: opts2.detail, context: opts2.context } };
+    clearTimeout(aiTimer); aiCtl?.abort(); openPanel(false); input.blur(); hidePop(); closeZoom();
+    document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
+    renderSources(opts2.context ? str(opts2.context.title) : q);
+    if (!opts2.detail) pushRecent(q);
+    ctl?.abort();
+    const myCtl = ctl = new AbortController();
+    const ui = renderLoading(q, opts2.detail);
+    if (opts2.detail !== undefined) $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
+
+    const s = await getSample();
+    if (!s) { ui.done(); renderError("Answers are off in this view", "MedQuery writes answers with Claude, which only runs when the page is opened inside Claude. You can still use the reference links.", q); return; }
+    try {
+      const d = await s.json(buildPrompt(q, opts2.context, !!opts2.detail), {
+        signal: myCtl.signal, modelTier: "default", cache: { gcTime: 30 * 60 * 1000 },
+        onText: () => ui.writing()
+      });
+      ui.done();
+      if (myCtl !== ctl) return;
+      if (!d || typeof d !== "object" || !str(d.summary)) throw { code: "invalid_json" };
+      registerAI(d); current = d; renderReport(d, q, !!opts2.detail);
+      if (!opts2.context && !opts2.keepMode) setCareTopic(d); else if (!careFor) setCareTopic(d);
+      if (!opts2.context && str(d.title)) renderSources(str(d.title));
+    } catch (e) {
+      ui.done();
+      if (myCtl !== ctl) return;
+      const code = e?.code;
+      if (code === "cancelled") { renderError("Search stopped", "Run it again whenever you like.", q); return; }
+      const copy = {
+        not_granted: ["Claude access was not allowed", "Answers need permission to use Claude from this page. Reload the page and allow it to search again."],
+        sampling_disabled: ["Answers are unavailable for this account", "Your account or organization has Claude answers turned off for pages like this one."],
+        rate_limited: ["Too many searches right now", "Wait a minute, then search again."],
+        session_expired: ["You were signed out", "Sign in to Claude again, then repeat the search."],
+        refused: ["This question can't be answered here", "Try rephrasing it as a general medical question."],
+        invalid_json: ["The answer came back incomplete", "Try the search again, or make it more specific."]
+      }[code] || ["The search didn't finish", "The connection dropped before the answer was complete. Try again."];
+      renderError(copy[0], copy[1], q);
+    }
+  }
+
+  $("#searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (active >= 0 && opts[active] && !panel.hidden) return choose(opts[active]);
+    const v = input.value.trim(); if (!v) return;
+    const hit = byTerm[ALIASES[v.toLowerCase()]] || INDEX.find(x => x.term.toLowerCase() === v.toLowerCase());
+    mode = hit ? hit.kind : "auto";
+    run(hit ? hit.term : v);
+  });
+})();
+</script>
+<script>
+/* Live theme from Figma: colors, fonts, type sizes and corner radius.
+   The owner's view (Figma connected) watches the "Live theme" frames and saves the result;
+   every other viewer applies the saved theme. */
+(() => {
+  const FILE = "PEXOHymeHPqMuGIHd9dROC", LIGHT = "23:151", DARK = "23:230";
+  const COLOR_MAP = { "bg/paper": "--paper", "bg/card": "--card", "text/ink": "--ink", "text/muted": "--muted", "border/rule": "--rule", "accent/default": "--accent", "accent/on": "--accent-ink", "accent/soft": "--accent-soft", "warn/default": "--warn", "warn/soft": "--warn-soft", "kind/disease": "--cap-disease", "kind/test": "--cap-test", "kind/medicine": "--cap-drug", "kind/question": "--cap-q" };
+  const LKEY = "medquery.figmaTheme";
+  const styleEl = document.createElement("style"); styleEl.id = "figma-live"; document.body.append(styleEl);
+  const loadedFonts = new Set(["Source Serif 4", "Public Sans", "JetBrains Mono"]);
+  let lastJson = "", badge = null;
+
+  const isHex = v => typeof v === "string" && /^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(v.trim());
+  const num = (v, lo, hi) => { const n = parseFloat(v); return isFinite(n) && n >= lo && n <= hi ? n : null; };
+  function parseFont(s) {
+    if (typeof s !== "string" || !s.startsWith("Font(")) return null;
+    const fam = /family:\s*"([^"]+)"/.exec(s)?.[1];
+    const g = k => { const m = new RegExp(k + ":\\s*(-?[\\d.]+)").exec(s); return m ? parseFloat(m[1]) : null; };
+    if (!fam || !/^[\w .\-]{1,60}$/.test(fam)) return null;
+    return { family: fam, size: g("size"), weight: g("weight"), lineHeight: g("lineHeight"), letterSpacing: g("letterSpacing") };
+  }
+  const payloadOf = r => { let p = r?.payload; if (typeof p === "string") { try { p = JSON.parse(p); } catch { p = null; } } return p && typeof p === "object" ? p : null; };
+  const stack = (fam, kind) => `"${fam}", ${kind === "mono" ? 'ui-monospace, Menlo, Consolas, monospace' : kind === "serif" ? 'Georgia, "Times New Roman", serif' : 'system-ui, -apple-system, "Segoe UI", sans-serif'}`;
+  function loadFont(fam) {
+    if (loadedFonts.has(fam)) return; loadedFonts.add(fam);
+    const l = document.createElement("link"); l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(fam).replace(/%20/g, "+") + ":wght@400;500;600;700&display=swap";
+    document.head.append(l);
+  }
+
+  // Turn the two Figma payloads into a compact, validated theme object
+  function toTheme(light, dark) {
+    const t = { light: {}, dark: {}, type: {}, radius: null };
+    for (const [k, css] of Object.entries(COLOR_MAP)) { if (isHex(light?.[k])) t.light[css] = light[k].trim(); if (isHex(dark?.[k])) t.dark[css] = dark[k].trim(); }
+    for (const k of ["Display/Logo", "Display/Title", "Label/Term", "Body/Search", "Body/Default", "Body/Small", "Mono/Caption", "Mono/Eyebrow", "Label/Button"]) { const v = light?.[k]; const f = v && typeof v === "object" ? (/^[\w .\-]{1,60}$/.test(String(v.family)) ? v : null) : parseFont(v); if (f) t.type[k] = f; }
+    t.radius = num(light?.["radius/lg"], 0, 40);
+    return t;
+  }
+
+  function apply(t) {
+    if (!t) return;
+    const decl = o => Object.entries(o).filter(([k, v]) => /^--[\w-]+$/.test(k) && isHex(v)).map(([k, v]) => `${k}:${v}`).join(";");
+    const ty = t.type || {}, css = [];
+    const root = [decl(t.light || {})];
+    const fam = (k, kind) => ty[k]?.family ? (loadFont(ty[k].family), stack(ty[k].family, kind)) : null;
+    const fd = fam("Display/Logo", "serif"), fb = fam("Body/Default", "sans"), fm = fam("Mono/Caption", "mono");
+    if (fd) root.push("--f-display:" + fd); if (fb) root.push("--f-body:" + fb); if (fm) root.push("--f-mono:" + fm);
+    const r = num(t.radius, 0, 40); if (r != null) root.push("--r:" + r + "px");
+    css.push(":root{" + root.filter(Boolean).join(";") + "}");
+    const d = decl(t.dark || {});
+    if (d) css.push(`@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){${d}}}`, `:root[data-theme="dark"]{${d}}`);
+    const sz = (k, lo, hi) => num(ty[k]?.size, lo, hi), ls = k => { const v = num(ty[k]?.letterSpacing, -20, 40); return v == null ? "" : `letter-spacing:${v / 100}em;`; };
+    const wt = k => { const v = num(ty[k]?.weight, 100, 900); return v == null ? "" : `font-weight:${v};`; };
+    const lh = k => { const v = num(ty[k]?.lineHeight, 0.8, 3); return v == null ? "" : `line-height:${v};`; };
+    if (sz("Display/Logo", 16, 120)) css.push(`.brand h1{font-size:clamp(2.2rem,7vw,${sz("Display/Logo", 16, 120)}px);${ls("Display/Logo")}${wt("Display/Logo")}}`);
+    if (sz("Display/Title", 14, 80)) css.push(`.report h2{font-size:clamp(1.4rem,3.6vw,${sz("Display/Title", 14, 80)}px);${ls("Display/Title")}${wt("Display/Title")}}`);
+    if (sz("Body/Search", 12, 40)) css.push(`form.search input{font-size:clamp(1.05rem,2.4vw,${sz("Body/Search", 12, 40)}px)}`);
+    if (sz("Label/Term", 12, 30)) css.push(`.opt-term{font-size:${sz("Label/Term", 12, 30)}px;${wt("Label/Term")}}`);
+    if (sz("Body/Default", 12, 24)) css.push(`body{font-size:${sz("Body/Default", 12, 24)}px;${lh("Body/Default")}}`);
+    if (sz("Label/Button", 12, 26)) css.push(`form.search button{font-size:${sz("Label/Button", 12, 26)}px;${wt("Label/Button")}}`);
+    styleEl.textContent = css.join("\n");
+  }
+
+  function showBadge(text) {
+    if (!badge) { badge = document.createElement("div"); badge.className = "figma-badge"; badge.setAttribute("role", "status"); document.body.append(badge); }
+    badge.textContent = text;
+  }
+
+  // 1. instant: last theme this browser saw
+  try { const c = JSON.parse(localStorage.getItem(LKEY) || "null"); if (c) { apply(c); lastJson = JSON.stringify(c); } } catch {}
+  const remember = t => { try { localStorage.setItem(LKEY, JSON.stringify(t)); } catch {} };
+
+  const el = (tag, attrs = {}, ...kids) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) { if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else if (k.startsWith("on")) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); }
+    for (const k of kids) if (k != null) n.append(k);
+    return n;
+  };
+  // ---------- Design tokens panel (#design-tokens): import a Figma variables export without the connector ----------
+  const TYPE_NAMES = ["Display/Logo", "Display/Title", "Label/Term", "Body/Search", "Body/Default", "Body/Small", "Mono/Caption", "Mono/Eyebrow", "Label/Button"];
+  const KNOWN = [...Object.keys(COLOR_MAP), "radius/lg", ...TYPE_NAMES];
+  const WEIGHTS = { thin: 100, extralight: 200, light: 300, regular: 400, normal: 400, medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900 };
+  const to2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  function toHex(v) {
+    if (typeof v === "string") {
+      const s = v.trim();
+      if (/^#[0-9a-f]{3}$/i.test(s)) return "#" + s.slice(1).split("").map(c => c + c).join("").toLowerCase();
+      if (/^#[0-9a-f]{6}([0-9a-f]{2})?$/i.test(s)) return s.slice(0, 7).toLowerCase();
+      const m = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/i.exec(s); if (m) return "#" + to2(+m[1]) + to2(+m[2]) + to2(+m[3]);
+      return null;
+    }
+    if (v && typeof v === "object" && "r" in v && "g" in v && "b" in v) { const k = Math.max(v.r, v.g, v.b) <= 1 ? 255 : 1; return "#" + to2(v.r * k) + to2(v.g * k) + to2(v.b * k); }
+    if (v && typeof v === "object" && typeof v.hex === "string") return toHex(v.hex);
+    return null;
+  }
+  function typoFrom(v) {
+    if (typeof v === "string") return parseFont(v);
+    if (!v || typeof v !== "object") return null;
+    const fam = v.fontFamily || v.family; if (typeof fam !== "string" || !/^[\w .\-]{1,60}$/.test(fam)) return null;
+    const size = parseFloat(v.fontSize ?? v.size);
+    let weight = v.fontWeight ?? v.weight; weight = typeof weight === "string" && isNaN(+weight) ? WEIGHTS[weight.toLowerCase().replace(/[\s_-]/g, "")] ?? null : parseFloat(weight);
+    let lh = v.lineHeight; if (typeof lh === "string") lh = lh.trim().endsWith("%") ? parseFloat(lh) / 100 : parseFloat(lh); if (lh > 3 && size) lh = lh / size;
+    let ls = v.letterSpacing; if (typeof ls === "string") ls = ls.trim().endsWith("px") && size ? parseFloat(ls) / size * 100 : parseFloat(ls);
+    return { family: fam, size: isFinite(size) ? size : null, weight: isFinite(weight) ? weight : null, lineHeight: isFinite(lh) ? lh : null, letterSpacing: isFinite(ls) ? ls : null };
+  }
+  // Flatten any common export shape (flat, nested, W3C "$value", Tokens Studio "value", collections, Light/Dark modes)
+  function flatten(obj, path = [], out = []) {
+    if (!obj || typeof obj !== "object") return out;
+    for (const [k, v] of Object.entries(obj)) {
+      if (k.startsWith("$") && k !== "$value") continue;
+      const p = [...path, k];
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        const val = "$value" in v ? v.$value : "value" in v && !("r" in v) ? v.value : undefined;
+        if (val !== undefined) out.push([p, val]);
+        else if ("r" in v || "fontFamily" in v || "hex" in v) out.push([p, v]);
+        else if (v.valuesByMode && typeof v.valuesByMode === "object") { for (const [mode, mv] of Object.entries(v.valuesByMode)) out.push([[...path, mode, v.name || k], mv]); }
+        else flatten(v, p, out);
+      } else out.push([p, v]);
+    }
+    return out;
+  }
+  function parseTokens(text) {
+    const data = JSON.parse(text);
+    const list = Array.isArray(data) ? data.flatMap(x => flatten({ [x?.name || "?"]: x })) : flatten(data);
+    const light = {}, dark = {}; let hits = 0;
+    for (const [path, val] of list) {
+      const segs = path.map(s => String(s).replace(/\./g, "/")).join("/").split("/").map(s => s.trim()).filter(Boolean);
+      const isDark = segs.some(s => /dark/i.test(s));
+      const name = KNOWN.find(n => { const ns = n.split("/"); return segs.length >= ns.length && ns.every((x, i) => segs[segs.length - ns.length + i].toLowerCase() === x.toLowerCase()); });
+      if (!name) continue;
+      const target = isDark ? dark : light;
+      if (COLOR_MAP[name]) { const h = toHex(val); if (h) { target[name] = h; hits++; } }
+      else if (name === "radius/lg") { const r = parseFloat(val); if (isFinite(r)) { light[name] = String(r); hits++; } }
+      else { const f = typoFrom(val); if (f) { light[name] = f; hits++; } }
+    }
+    return { light, dark, hits };
+  }
+  // Current design as a flat Figma-style token file (for importing into Figma with a variables plugin)
+  const LIGHT_DEFAULT = { "bg/paper": "#f3f6f8", "bg/card": "#ffffff", "text/ink": "#132433", "text/muted": "#5a6b78", "border/rule": "#d6dfe6", "accent/default": "#1c5d8c", "accent/on": "#ffffff", "accent/soft": "#e2eef7", "warn/default": "#a3361f", "warn/soft": "#fbe9e4", "kind/disease": "#c0392b", "kind/test": "#7b5ea7", "kind/medicine": "#b8860b", "kind/question": "#2f7d5b" };
+  const DARK_DEFAULT = { "bg/paper": "#0e161d", "bg/card": "#15212b", "text/ink": "#e4ecf2", "text/muted": "#93a5b3", "border/rule": "#263643", "accent/default": "#6fb3e3", "accent/on": "#0b1620", "accent/soft": "#1b3346", "warn/default": "#f08a70", "warn/soft": "#3a1f19", "kind/disease": "#e8695a", "kind/test": "#a98bd6", "kind/medicine": "#dcb24a", "kind/question": "#5cbf90" };
+  // Current design as a Figma-style token file (Light / Dark groups, Figma variable names)
+  function exportTokens() {
+    const saved = (() => { try { return JSON.parse(localStorage.getItem(LKEY) || "null"); } catch { return null; } })();
+    const Light = {}, Dark = {};
+    for (const [n, css] of Object.entries(COLOR_MAP)) { Light[n] = saved?.light?.[css] || LIGHT_DEFAULT[n]; Dark[n] = saved?.dark?.[css] || DARK_DEFAULT[n]; }
+    return JSON.stringify({ Light, Dark, "radius/lg": saved?.radius ?? 14 }, null, 2);
+  }
+
+  function openTokensPanel() {
+    if (document.getElementById("tokens")) return;
+    const ta = el("textarea", { id: "tokText", rows: "8", spellcheck: "false", placeholder: '{ "Light": { "bg/paper": "#f3f6f8", "accent/default": "#1c5d8c" }, "Dark": { … } }' });
+    const file = el("input", { id: "tokFile", type: "file", accept: ".json,application/json" });
+    const status = el("p", { class: "tok-status", "aria-live": "polite" });
+    let parsed = null;
+    const check = () => {
+      try { parsed = parseTokens(ta.value); status.textContent = parsed.hits ? `Found ${parsed.hits} matching tokens (${Object.keys(parsed.dark).length} for dark mode). Preview or save.` : "No matching token names found. Names must match the Figma variables, e.g. bg/paper or accent/default."; }
+      catch { parsed = null; status.textContent = ta.value.trim() ? "That isn't valid JSON. Paste the whole exported file." : ""; }
+    };
+    ta.addEventListener("input", check);
+    file.addEventListener("change", async () => { const f = file.files?.[0]; if (f) { ta.value = await f.text(); check(); } });
+    const preview = el("button", { type: "button", class: "mini", text: "Preview" });
+    const save = el("button", { type: "button", class: "tok-save", text: "Save for everyone" });
+    const reset = el("button", { type: "button", class: "mini", text: "Reset to original design" });
+    const copy = el("button", { type: "button", class: "mini", text: "Copy current tokens" });
+    preview.addEventListener("click", () => { if (!parsed?.hits) return check(); apply(toTheme(parsed.light, parsed.dark)); status.textContent = "Previewing on this screen only. Save to keep it."; });
+    save.addEventListener("click", async () => {
+      if (!parsed?.hits) return check();
+      const t = toTheme(parsed.light, parsed.dark); apply(t); remember(t); lastJson = JSON.stringify(t);
+      try { const db = await window.claude?.use?.("db"); if (!db) throw 0; await db.doc("theme/live").set({ theme: t, syncedAt: Date.now(), source: "import" }); status.textContent = "Saved. Everyone who opens MedQuery now sees this design."; }
+      catch (e) { status.textContent = e?.code === "permission_denied" ? "Only people who can edit MedQuery can save a design." : "Applied on this device, but it couldn't be saved for everyone here. Open MedQuery inside Claude and try again."; }
+    });
+    reset.addEventListener("click", async () => {
+      styleEl.textContent = ""; try { localStorage.removeItem(LKEY); } catch {} lastJson = "";
+      try { const db = await window.claude?.use?.("db"); await db?.doc("theme/live").delete(); status.textContent = "Back to the original design for everyone."; } catch { status.textContent = "Back to the original design on this device."; }
+    });
+    copy.addEventListener("click", async () => { const j = exportTokens(); try { await navigator.clipboard.writeText(j); status.textContent = "Copied. Import it into Figma with a variables plugin to start from the current design."; } catch { ta.value = j; ta.select(); status.textContent = "Selected below. Press Ctrl+C (or ⌘C) to copy."; } });
+    const close = () => { panelEl.remove(); if (location.hash === "#design-tokens") history.replaceState(null, "", location.pathname + location.search); };
+    const names = el("details", { class: "tok-names" }, el("summary", { text: "Token names the site understands" }),
+      el("p", { text: "Colors: " + Object.keys(COLOR_MAP).join(", ") }),
+      el("p", { text: "Corners: radius/lg. Text styles (optional, as Font(…) strings or Tokens Studio typography): " + TYPE_NAMES.join(", ") }),
+      el("p", { text: "Put dark-mode colors under a group or collection whose name contains “Dark”." }));
+    const panelEl = el("section", { class: "tokens", id: "tokens", role: "dialog", "aria-label": "Design tokens" },
+      el("div", { class: "about-head" }, el("div", { class: "about-title", text: "Design tokens" }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: close })),
+      el("p", { class: "about-lede", text: "Update MedQuery's colors, fonts and corner rounding from Figma without the Figma connector. In Figma, export your variables to JSON with a variables-export plugin, then load the file here." }),
+      el("label", { class: "tok-file" }, "Exported JSON file ", file),
+      ta, status,
+      el("div", { class: "tok-actions" }, save, preview, copy, reset),
+      names);
+    document.body.append(panelEl);
+  }
+  const routeTokens = () => { if (location.hash === "#design-tokens") openTokensPanel(); };
+  addEventListener("hashchange", routeTokens); routeTokens();
+
+
+  (async () => {
+    const [db, mcp] = await Promise.all([Promise.resolve(window.claude?.use?.("db")).catch(() => null), Promise.resolve(window.claude?.use?.("mcp")).catch(() => null)]);
+    const ref = db ? db.doc("theme/live") : null;
+    // 2. shared: the theme saved by the owner's last sync
+    ref?.onSnapshot(snap => {
+      const t = snap.exists ? snap.data()?.theme : null; if (!t) return;
+      const j = JSON.stringify(t); if (j === lastJson) return;
+      lastJson = j; apply(t); remember(t);
+    }, () => {});
+    // 3. live: read Figma directly when this viewer has it connected
+    // Automatic Figma reads are off: the Figma Starter plan allows only 20 connector calls a month.
+    // The theme saved at the last sync still applies for everyone.
+    const AUTO_SYNC = false;
+    if (!mcp || !AUTO_SYNC) return;
+    let light = null, dark = null;
+    const onData = async () => {
+      if (!light) return;
+      const t = toTheme(light, dark || {});
+      const j = JSON.stringify(t);
+      showBadge("Live from Figma · " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+      if (j === lastJson) return;
+      lastJson = j; apply(t); remember(t);
+      try { await ref?.set({ theme: t, syncedAt: Date.now() }); } catch {}
+    };
+    const watch = (nodeId, set) => mcp.watchTool("Figma", "get_variable_defs", { fileKey: FILE, nodeId }, ev => {
+      if (ev.type === "data") { const p = payloadOf(ev.result); if (p) { set(p); onData(); } }
+      else if (["needs_reauth", "server_not_connected", "not_in_manifest", "blocked_by_policy", "not_granted"].includes(ev.error?.code)) { if (badge) badge.remove(), badge = null; }
+    }, { refetchInterval: 30000, cache: { staleTime: 20000 } });
+    watch(LIGHT, p => { light = p; });
+    watch(DARK, p => { dark = p; });
+  })();
+})();
+</script>
