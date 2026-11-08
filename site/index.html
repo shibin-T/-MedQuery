@@ -1441,6 +1441,27 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     a.href = u.toString(); a.hidden = false;
   }
   const telHref = n => "tel:" + String(n).replace(/[^\d+]/g, "");
+  // Call buttons: the page runs inside a sandboxed frame, where a plain tel: link tries to load
+  // inside the frame and is silently blocked. Hand the tel: URL to the top window or a new
+  // window instead, so the phone's dialer opens with the number filled in.
+  function dial(href) {
+    const num = href.replace(/^tel:/i, "");
+    const framed = (() => { try { return window.top !== window; } catch { return true; } })();
+    if (!framed) { window.location.href = href; toastSoon(num); return true; }
+    // 1) a new window escapes the sandbox (window.open returns null when popups are blocked)
+    try { if (window.open(href, "_blank")) { toastSoon(num); return true; } } catch {}
+    // 2) navigate the top window; a tel: URL hands off to the dialer without leaving the page
+    try { window.top.location.href = href; toastSoon(num); return true; } catch {}
+    // 3) last resort: the frame itself
+    try { window.location.href = href; toastSoon(num); return true; } catch {}
+    return false;
+  }
+  function toastSoon(num) { setTimeout(() => toast("Opening your phone's dialer for " + num + ". If it doesn't open, dial " + num + " yourself."), 300); }
+  document.addEventListener("click", e => {
+    const a = e.target.closest?.('a[href^="tel:"]'); if (!a) return;
+    e.preventDefault();
+    if (!dial(a.getAttribute("href"))) toast("Couldn't open the dialer. Please dial " + a.getAttribute("href").replace(/^tel:/i, "") + " yourself.");
+  }, true);
   function copyBtn(text, label) {
     const b = el("button", { class: "mini", type: "button", text: label || "Copy" });
     b.addEventListener("click", async () => { try { await navigator.clipboard.writeText(text); b.textContent = "Copied"; } catch { const r = document.createRange(); r.selectNodeContents(b.previousSibling || b); getSelection().removeAllRanges(); getSelection().addRange(r); b.textContent = "Selected"; } setTimeout(() => b.textContent = label || "Copy", 1800); });
