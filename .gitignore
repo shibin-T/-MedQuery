@@ -1,0 +1,11 @@
+# Operating-system clutter
+.DS_Store
+Thumbs.db
+
+# Editor folders
+.vscode/
+.idea/
+
+# Never commit secrets (API keys, passwords)
+.env
+*.key
