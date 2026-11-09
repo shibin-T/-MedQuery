@@ -56,4 +56,4 @@ Small on-device models are less reliable than Claude, especially in Indian langu
 
 ## Licence
 
-[MIT](LICENSE). The project uses [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).
+[MIT](LICENSE). The project uses [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), [WebLLM](https://github.com/mlc-ai/web-llm) (Apache-2.0), [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), open models such as Qwen under their own licences, Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).
