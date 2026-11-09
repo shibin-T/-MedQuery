@@ -671,7 +671,8 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     r.append(el("div", { class: "report-head", tabindex: "0", "data-imp": str(d.urgent) ? "critical" : "info", style: "--blk:" + k.color },
       el("div", { class: "meta" },
         el("span", { class: "kind" }, el("i", { class: "cap", style: "background:" + k.color }), k.label),
-        el("span", { class: "lvl", text: detail ? "Detailed" : "Quick answer" })
+        el("span", { class: "lvl", text: detail ? "Detailed" : "Quick answer" }),
+        str(d.engineNote) ? el("span", { class: "lvl eng-lvl", text: str(d.engineNote) }) : null
       ),
       el("h2", { text: str(d.title) || "Answer" }),
       has(d.aka) ? el("div", { class: "aka", text: "Also called: " + arr(d.aka).map(str).join(", ") }) : null,
@@ -709,7 +710,8 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       for (const x of evItems) {
         const label = [str(x.source), str(x.title), str(x.year)].filter(Boolean).join(" · ");
         const q = encodeURIComponent((str(x.title) || str(x.source)).slice(0, 160));
-        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href: "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)", target: "_blank", rel: "noopener", text: "Read free ↗" })));
+        const href = /^https:\/\//.test(str(x.url)) ? str(x.url) : "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)";
+        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href, target: "_blank", rel: "noopener", text: "Read free ↗" })));
       }
       r.append(el("details", { class: "evidence", ...(conf && conf !== "high" ? { open: "" } : {}) },
         el("summary", {}, "Open-access sources", conf ? el("span", { class: "conf", text: conf + " confidence" }) : null),
@@ -862,10 +864,13 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     const steps = ["Understanding your search", "Checking guideline-level evidence", detail ? "Writing the detailed version" : "Writing a short answer"];
     const ul = el("ul", { class: "steps" }); steps.forEach((s, i) => ul.append(el("li", { class: i === 0 ? "on" : "", text: s })));
     const stop = el("button", { class: "stop", type: "button", text: "Stop", onclick: () => ctl?.abort() });
-    r.append(el("div", { class: "loading" }, el("div", { class: "meta", text: "Searching" }), el("div", { class: "q", text: q }), el("div", { class: "bar" }, el("i")), ul, stop));
+    const statusLine = el("p", { class: "eng-status", hidden: "" });
+    const prog = el("div", { class: "eng-prog", id: "engProg", hidden: "" }, el("div", { class: "eng-prog-top" }, el("span", { text: "Downloading the AI model (one time only)" }), el("b", { text: "0%" })), el("div", { class: "eng-prog-bar" }, el("i")));
+    r.append(el("div", { class: "loading" }, el("div", { class: "meta", text: "Searching" }), el("div", { class: "q", text: q }), el("div", { class: "bar" }, el("i")), ul, prog, statusLine, stop));
     const t = setTimeout(() => ul.children[1]?.classList.add("on"), 2500);
     return {
-      writing() { clearTimeout(t); [...ul.children].forEach(li => li.classList.add("on")); },
+      writing() { clearTimeout(t); [...ul.children].forEach(li => li.classList.add("on")); prog.hidden = true; },
+      status(text) { statusLine.hidden = !text; statusLine.textContent = text; },
       done() { clearTimeout(t); }
     };
   }
@@ -1396,7 +1401,7 @@ Sildenafil|m|pill|PDE5 inhibitor`;
   function scheduleAi(q) {
     clearTimeout(aiTimer); aiCtl?.abort();
     const s = q.trim();
-    if (!aiAllowed || s.length < 3 || looksLikeQuestion(s) || matchLocal(s).length >= 4) return;
+    if (!IN_CLAUDE || !aiAllowed || s.length < 3 || looksLikeQuestion(s) || matchLocal(s).length >= 4) return;
     aiTimer = setTimeout(async () => {
       const smp = await getSample(); if (!smp || input.value.trim() !== s) return;
       const myCtl = aiCtl = new AbortController();
@@ -1591,11 +1596,33 @@ Sildenafil|m|pill|PDE5 inhibitor`;
       list.append(el("div", { class: "place" },
         el("div", { class: "place-top" }, el("div", { class: "place-name", text: p.name }), p.km != null ? el("span", { class: "place-km", text: fmtKm(p.km) }) : null),
         el("div", { class: "place-area", text: p.address || "Address not confirmed. Use Directions to find it." }),
-        p.phone ? el("div", { class: "place-phone" }, el("span", { class: "ph-label", text: "24/7 " + (p.phoneLabel || "line") + ":" }), phoneEl) : el("div", { class: "place-phone muted", text: "No confirmed 24/7 number. Check the hospital's listing in your map app." }),
+        p.phone ? el("div", { class: "place-phone" }, el("span", { class: "ph-label", text: (p.is247 === false ? "" : "24/7 ") + (p.phoneLabel || "line") + ":" }), phoneEl) : el("div", { class: "place-phone muted", text: "No confirmed 24/7 number. Check the hospital's listing in your map app." }),
         el("div", { class: "place-actions" },
           el("a", { class: "pa pa-dir", href: app.url(p), target: "_blank", rel: "noopener", "aria-label": "Directions to " + p.name + " in " + app.label }, "➤ Directions"),
           p.phone ? el("a", { class: "pa pa-call", href: telHref(p.phone), "aria-label": "Call " + p.name + " " + p.phone }, "✆ Call") : null,
           p.phone ? copyBtn(p.phone, "Copy number") : null)));
+    }
+  }
+
+  // Outside Claude: real hospital data from OpenStreetMap, no AI needed
+  async function findCareOSM(list, topic, my) {
+    try {
+      await loadLocalModule();
+      const words = careFor && careFor.kind !== "general" ? str(careFor.title).toLowerCase().split(/[\s(),]+/).filter(w => w.length > 4) : [];
+      const r = await MQL.findPlaces(careLoc, words);
+      if (my !== careCtl) return;
+      renderEmergency($("#sosBox"), emergencyFor(careLoc, r.country));
+      careOrigin = r.origin;
+      if (!r.origin) { list.replaceChildren(el("p", { class: "care-note", text: "Couldn't find that place. Try adding the city or country." }), mapsFallback()); return; }
+      carePlaces = r.places.filter((p, i) => p.isHospital || p.er || i < 6).slice(0, 8).map(p => ({ ...p, is247: p.er }));
+      careSpec = words.join(",");
+      updateMapLink();
+      if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: "No hospitals or clinics are mapped within 8 km in OpenStreetMap. Try a nearby town." }), mapsFallback()); return; }
+      drawCareList();
+      list.append(el("p", { class: "care-note", text: "Live data from OpenStreetMap; phone numbers appear when mapped. Distances are straight-line. In an emergency, call " + ((emergencyFor(careLoc, r.country) || ["", "112"])[1]) + "." }), mapsFallback(true));
+    } catch (e) {
+      if (my !== careCtl) return;
+      list.replaceChildren(el("p", { class: "care-note", text: "Couldn't reach the map service right now. Try again in a minute." }), mapsFallback());
     }
   }
 
@@ -1605,6 +1632,8 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     careCtl?.abort(); const my = careCtl = new AbortController();
     carePlaces = []; const tools = $("#careTools"); if (tools) tools.hidden = true;
     list.replaceChildren(el("p", { class: "care-note", text: "Finding hospitals near " + careLoc + "…" }));
+    await claudeCheck;
+    if (!IN_CLAUDE) return findCareOSM(list, topic, my);
     const s = await getSample();
     if (!s) { list.replaceChildren(mapsFallback()); return; }
     const what = topic.kind === "general" ? "major hospitals with a 24-hour emergency department" : topic.kind === "test" ? "labs or diagnostic centres that do this test (or hospitals with one)" : topic.kind === "drug" ? "hospitals or clinics whose specialists prescribe and monitor this medicine" : "hospitals or clinics that treat this";
@@ -1985,6 +2014,39 @@ Reply with ONLY one JSON object:
 Rules: list EVERY lab value on the report (up to 60). status "borderline" = within about 10% outside the range; "critical" = far outside or in a dangerous zone. If all values are normal, possibleDiagnoses may be [] and say so in summary. Set readCertain false for any value you could not read clearly.${LANG_NOTE()}${textLayer ? "\n\nEXTRACTED TEXT FROM THE PDF (may contain personal details: ignore them):\n" + textLayer : ""}`;
   }
 
+  // On-device version: read the report's text here (PDF text or on-device OCR), then explain it with the local AI
+  async function analyzeReportLocal(file, isPdf, s, my, ul, fail) {
+    const r = $("#report");
+    const note = el("p", { class: "eng-status" }); r.querySelector(".loading")?.insertBefore(note, r.querySelector(".loading .stop"));
+    try {
+      let text = "";
+      if (isPdf) {
+        const pdf = await readPdf(file, 3, true);
+        text = pdf.text.replace(/\s+/g, " ").trim().length > 80 ? pdf.text : "";
+        if (!text && pdf.images.length) { note.textContent = "Reading the scanned pages on your device…"; text = await MQL.ocr(pdf.images, p => note.textContent = "Reading the scanned pages on your device… " + Math.round(p * 100) + "%"); }
+      } else {
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return fail("That file type isn't supported", "Upload a JPG, PNG or WebP image, or a PDF.");
+        note.textContent = "Reading the report on your device…";
+        text = await MQL.ocr(await shrinkImage(file, 2400), p => note.textContent = "Reading the report on your device… " + Math.round(p * 100) + "%");
+      }
+      if (my !== repCtl) return;
+      if (text.replace(/\s+/g, "").length < 40) return fail("No readable text was found", "Upload the lab's PDF, or a sharper, flat photo of the printed report. Handwritten reports can't be read.");
+      ul.children[1].classList.add("on"); note.textContent = "Explaining the values on your device…";
+      const d = await s.json(MQL.reportPrompt(text, LANG_NOTE()), { signal: my.signal, maxTokens: 2200, onText: ({ text: t }) => { ul.children[2].classList.add("on"); note.textContent = "Explaining the values on your device… " + t.length.toLocaleString() + " characters"; } });
+      if (my !== repCtl) return;
+      if (!d || typeof d !== "object") throw { code: "invalid_json" };
+      if (d.readable === false || !arr(d.results).length) return fail("This report couldn't be read reliably", str(d.reason) || "Upload the lab's PDF, or a sharper photo of the printed report.");
+      d.caveat = (str(d.caveat) ? str(d.caveat) + " " : "") + "Read and explained on your device by a small AI model; check each value against your printed report.";
+      registerAI(d); renderLabReport(d);
+    } catch (e) {
+      if (my !== repCtl) return;
+      if (e?.code === "cancelled" || e?.name === "AbortError") return fail("Scan stopped", "Upload the report again whenever you like.");
+      fail(e?.code === "invalid_json" ? "The reading came back incomplete" : "The report couldn't be read on this device", e?.code === "invalid_json" ? "Small on-device models sometimes stumble on long reports. Try again, or switch to a larger model in AI engine settings." : "Try again, or try a different copy of the report.");
+      const detail = [e?.code, e?.name, e?.message].filter(Boolean).join(": ").slice(0, 160);
+      if (detail) $("#report .err")?.append(el("p", { class: "err-detail", text: "Technical detail: " + detail }));
+    }
+  }
+
   async function analyzeReport(file) {
     closeZoom?.(); hidePop(); openPanel(false);
     document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
@@ -2000,6 +2062,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     const fail = (title, msg) => { if (my !== repCtl) return; r.replaceChildren(el("div", { class: "err" }, el("div", { class: "meta", text: "Report not read" }), el("h2", { text: title, style: "font-family:var(--f-display);margin:0" }), el("p", { text: msg, style: "margin:0;color:var(--muted)" }), el("button", { class: "stop", type: "button", text: "Upload another report", onclick: openGuide }))); };
     const s = await getSample();
     if (!s) return fail("Report scanning is off in this view", "Reading reports needs Claude, which only runs when MedQuery is opened inside Claude.");
+    if (s.engine === "local") return analyzeReportLocal(file, isPdf, s, my, ul, fail);
     const caps = await s.limits?.().catch(() => null) || null;
     const canImg = !!caps?.images;
     try {
@@ -2106,12 +2169,102 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   const lab = $("#upBtn"); if (!lab) console.warn("upload button missing");
 
   // ---------- Run ----------
+  // Inside Claude: Claude's built-in connection. Anywhere else (e.g. GitHub Pages): the free on-device AI in local-ai.js
+  let IN_CLAUDE = typeof window.claude?.use === "function";
+  // Inside Claude the connection may appear a moment after the page starts, so wait briefly before choosing the on-device AI
+  const claudeCheck = IN_CLAUDE ? Promise.resolve(true) : new Promise(res => { const t0 = Date.now(); const tick = () => { if (typeof window.claude?.use === "function") { IN_CLAUDE = true; res(true); } else if (Date.now() - t0 > 1500) res(false); else setTimeout(tick, 100); }; tick(); });
+  let MQL = null; // the on-device AI module, loaded only outside Claude
+  async function loadLocalModule() { MQL ||= await import("./local-ai.js"); return MQL; }
   async function getSample() {
     if (sampleChecked) return sample;
-    try { sample = window.claude?.use ? await window.claude.use("sample") : null; } catch { sample = null; }
+    await claudeCheck;
+    if (IN_CLAUDE) { try { sample = await window.claude.use("sample"); } catch { sample = null; } }
+    else {
+      try { await loadLocalModule(); sample = await MQL.getSampler({ onProgress: p => engineProgress(p), confirmDownload: st => confirmDownload(st) }); }
+      catch (e) { console.warn("On-device AI unavailable:", e); sample = null; }
+    }
     sampleChecked = true;
     return sample;
   }
+
+  // ---------- On-device AI: kind detection, progress, download consent, settings ----------
+  async function detectKind(q, s, signal) {
+    const t = q.toLowerCase().trim();
+    const hit = byTerm[ALIASES[t]] || INDEX.find(x => x.term.toLowerCase() === t) || INDEX.find(x => x.term.toLowerCase().startsWith(t + " (") || x.term.toLowerCase().split(" (")[0] === t);
+    if (hit && !looksLikeQuestion(q)) return { kind: hit.kind, term: hit.term.split(" (")[0] };
+    try {
+      const r = await s.json(`Classify this medical search and extract its main medical term (in English). Search: "${q.slice(0, 200)}". Reply as JSON: {"kind":"disease|test|drug|question","term":"main medical term, e.g. dengue fever, HbA1c, metformin"}`, { signal, maxTokens: 60 });
+      const kind = ["disease", "test", "drug", "question"].includes(r?.kind) ? r.kind : "question";
+      return { kind, term: str(r?.term) || q };
+    } catch (e) { if (e?.code === "cancelled") throw e; return { kind: looksLikeQuestion(q) ? "question" : "disease", term: q }; }
+  }
+  function engineProgress(p) {
+    const n = document.getElementById("engProg"); if (!n) return;
+    const pct = Math.round((p.progress || 0) * 100);
+    n.hidden = false; n.querySelector("b").textContent = pct + "%"; n.querySelector("i").style.width = pct + "%";
+    n.querySelector("span").textContent = /cache|Loading model from cache/i.test(p.text) ? "Loading the AI from this device" : "Downloading the AI model (one time only)";
+  }
+  function confirmDownload(st) {
+    return new Promise(async resolve => {
+      const mdl = MQL.BROWSER_MODELS.find(m => m.id === st.model) || MQL.BROWSER_MODELS[0];
+      const gpu = await MQL.webgpuStatus();
+      const done = v => { box.remove(); resolve(v); };
+      const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlTitle" }, el("section", { class: "guide" },
+        el("h2", { id: "dlTitle", class: "guide-title", text: gpu.ok ? "Download the free on-device AI?" : "This browser can't run the on-device AI" }),
+        gpu.ok ? el("p", { class: "guide-lede", text: `MedQuery answers using an AI that runs on your own device, so it's free and private. The first time, it downloads ${mdl.label.split(" (")[0]} (about ${mdl.gb} GB). It's stored in this browser, so later visits start quickly, even offline.` })
+               : el("p", { class: "guide-lede", text: gpu.reason }),
+        el("ul", {}, el("li", { text: "Best on Wi-Fi. Large downloads can use your mobile data." }), el("li", { text: "Needs a recent Chrome or Edge with enough memory; older phones may be slow." }), el("li", { text: "Answers are checked against free official sources before you see them." })),
+        el("div", { class: "guide-actions" },
+          el("button", { class: "stop", type: "button", text: "Choose another model or Ollama", onclick: () => { done(false); openEngineSettings(); } }),
+          gpu.ok ? el("button", { class: "guide-ok", type: "button", text: "Download (" + mdl.gb + " GB)", onclick: () => done(true) }) : el("button", { class: "guide-ok", type: "button", text: "Close", onclick: () => done(false) }))));
+      document.body.append(box); box.querySelector(".guide-ok")?.focus();
+    });
+  }
+  async function openEngineSettings() {
+    await loadLocalModule();
+    const st = MQL.loadSettings(); if (!st.model) st.model = await MQL.suggestModel();
+    const close = () => box.remove();
+    const radio = (v, label, sub) => el("label", { class: "eng-opt" }, el("input", { type: "radio", name: "engKind", value: v, ...(st.engine === v ? { checked: "" } : {}) }), el("span", {}, el("b", { text: label }), el("small", { text: sub })));
+    const modelSel = el("select", { id: "engModel" }); MQL.BROWSER_MODELS.forEach(m => modelSel.append(el("option", { value: m.id, text: `${m.label} · ${m.gb} GB · quality: ${m.quality}` }))); modelSel.value = st.model;
+    const urlIn = el("input", { id: "engUrl", type: "url", value: st.ollamaUrl });
+    const olSel = el("select", { id: "engOllama" }, el("option", { value: st.ollamaModel || "", text: st.ollamaModel || "Check connection to list your models" }));
+    const status = el("p", { class: "note", "aria-live": "polite" });
+    const check = el("button", { class: "stop", type: "button", text: "Check connection" });
+    check.addEventListener("click", async () => {
+      status.textContent = "Connecting to Ollama…";
+      try { const ms = await MQL.ollamaModels(urlIn.value); olSel.replaceChildren(...ms.map(m => el("option", { value: m.name, text: m.name + (m.gb ? " · " + m.gb + " GB" : "") }))); if (st.ollamaModel) olSel.value = st.ollamaModel; status.textContent = ms.length ? "Connected. Pick a model." : "Connected, but no models are installed yet. Run: ollama pull qwen3:8b"; }
+      catch { status.textContent = "Couldn't reach Ollama. Make sure it's running and allows this site (see the steps above)."; }
+    });
+    const origin = location.origin.startsWith("http") ? location.origin : "https://shibin-t.github.io";
+    const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "engTitle" }, el("section", { class: "guide" },
+      el("div", { class: "about-head" }, el("h2", { id: "engTitle", class: "guide-title", text: "AI engine" }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: close })),
+      el("p", { class: "guide-lede", text: "MedQuery's answers come from an AI that runs on your own device: free, and your questions stay private. Every answer is checked against free official sources first." }),
+      radio("browser", "In this browser", "No install. Downloads a model once and runs it on your graphics chip."),
+      el("div", { class: "eng-sub" }, el("label", { for: "engModel", text: "Model" }), modelSel),
+      radio("ollama", "Ollama on this computer", "Bigger, more accurate models. Needs the free Ollama app."),
+      el("div", { class: "eng-sub" },
+        el("ol", { class: "eng-steps" },
+          el("li", {}, "Install Ollama from ollama.com, then run ", el("code", { text: "ollama pull qwen3:8b" }), "."),
+          el("li", {}, "Allow MedQuery to use it: set ", el("code", { text: "OLLAMA_ORIGINS=" + origin }), " and restart Ollama (on Windows: System → Environment variables; on Mac: ", el("code", { text: "launchctl setenv OLLAMA_ORIGINS " + origin }), ").")),
+        el("label", { for: "engUrl", text: "Ollama address" }), urlIn, el("div", { class: "row-flex" }, check, olSel), status),
+      el("div", { class: "guide-actions" }, el("span", { class: "note", text: "Saved on this device only." }),
+        el("button", { class: "guide-ok", type: "button", text: "Save", onclick: () => {
+          const ns = MQL.loadSettings();
+          ns.engine = box.querySelector("input[name=engKind]:checked")?.value || "browser"; ns.model = modelSel.value; ns.ollamaUrl = urlIn.value.trim() || "http://localhost:11434"; ns.ollamaModel = olSel.value;
+          if (ns.engine === "ollama" && !ns.ollamaModel) { status.textContent = "Check the connection and pick a model first."; return; }
+          MQL.saveSettings(ns); updateEngineChip(); close(); toast("AI engine saved: " + (ns.engine === "ollama" ? "Ollama · " + ns.ollamaModel : modelSel.selectedOptions[0].text.split(" · ")[0]));
+        } }))));
+    document.body.append(box); box.querySelector("input[name=engKind]:checked")?.focus();
+  }
+  function updateEngineChip() {
+    if (IN_CLAUDE || !MQL) return;
+    let chip = document.getElementById("engChip");
+    if (!chip) { chip = el("button", { id: "engChip", class: "eng-chip no-tr", type: "button", onclick: openEngineSettings }); document.body.append(chip); }
+    const st = MQL.loadSettings();
+    chip.replaceChildren(el("span", { class: "eng-dot", "aria-hidden": "true" }), el("span", { text: "On-device AI: " + (st.engine === "ollama" ? "Ollama · " + (st.ollamaModel || "not set") : (MQL.BROWSER_MODELS.find(m => m.id === st.model)?.label.split(" (")[0] || "choose a model")) }));
+    chip.setAttribute("aria-label", "AI engine settings");
+  }
+  claudeCheck.then(inClaude => inClaude ? null : loadLocalModule()).then(async () => { if (IN_CLAUDE || !MQL) return; const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); } updateEngineChip(); }).catch(() => {});
 
   async function run(q, opts2 = {}) {
     q = str(q); if (!q) return;
@@ -2126,12 +2279,32 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     if (opts2.detail !== undefined) $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
 
     const s = await getSample();
-    if (!s) { ui.done(); renderError("Answers are off in this view", "MedQuery writes answers with Claude, which only runs when the page is opened inside Claude. You can still use the reference links.", q); return; }
+    if (!s) { ui.done(); renderError("Answers are off in this view", IN_CLAUDE ? "MedQuery writes answers with Claude, which isn't available in this view. You can still use the reference links." : "The on-device AI couldn't start in this browser. Try a recent Chrome or Edge, or choose Ollama in AI engine settings.", q); return; }
     try {
-      const d = await s.json(buildPrompt(q, opts2.context, !!opts2.detail), {
-        signal: myCtl.signal, modelTier: "default", cache: { gcTime: 30 * 60 * 1000 },
-        onText: () => ui.writing()
-      });
+      let d;
+      if (s.engine === "local") {
+        // On-device AI: decide the kind, look up free official sources, then answer only from them
+        ui.status("Understanding your search…");
+        const { kind, term } = mode !== "auto" ? { kind: mode, term: q } : await detectKind(q, s, myCtl.signal);
+        ui.status("Looking up free official sources…");
+        const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind);
+        ui.status("Writing the answer on your device…");
+        d = await s.json(MQL.answerPrompt({ q, kind, context: g.context, detail: !!opts2.detail, langNote: LANG_NOTE(), followUp: opts2.context ? str(opts2.context.title) : "" }), {
+          signal: myCtl.signal, maxTokens: opts2.detail ? 2000 : 1300, onText: ({ text }) => { ui.writing(); ui.status("Writing the answer on your device… " + text.length.toLocaleString() + " characters"); }
+        });
+        if (d && typeof d === "object") {
+          d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
+          d.title = str(d.title) || term;
+          d.evidence = g.sources.map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));
+          if (!g.sources.length) { d.confidence = "low"; d.uncertainty = str(d.uncertainty) || "No official source could be reached, so this answer comes only from a small on-device AI and may be wrong. Check it with a doctor or a trusted source."; d.needsResearch = true; }
+          d.engineNote = "Answered on your device · " + s.describe();
+        }
+      } else {
+        d = await s.json(buildPrompt(q, opts2.context, !!opts2.detail), {
+          signal: myCtl.signal, modelTier: "default", cache: { gcTime: 30 * 60 * 1000 },
+          onText: () => ui.writing()
+        });
+      }
       ui.done();
       if (myCtl !== ctl) return;
       if (!d || typeof d !== "object" || !str(d.summary)) throw { code: "invalid_json" };
@@ -2392,4 +2565,5 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   })();
 })();
 </script>
+
 </body></html>
