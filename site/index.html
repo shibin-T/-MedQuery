@@ -1,4 +1,27 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}.err-detail{margin:0;font-size:.78rem;color:var(--muted);font-family:var(--f-mono);overflow-wrap:anywhere}
 
+/* ===== On-device AI ===== */
+.eng-chip{position:fixed;z-index:44;top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));display:inline-flex;align-items:center;gap:7px;border:1.5px solid var(--ink);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:600 .8rem var(--f-body);cursor:pointer;box-shadow:2px 2px 0 var(--ink);max-width:calc(50vw - 20px)}
+.eng-chip span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.eng-dot{width:9px;height:9px;flex:none;border-radius:50%;background:var(--neon-normal,#00b85c);box-shadow:0 0 8px var(--neon-normal,#00b85c)}
+[dir="rtl"] .eng-chip{right:auto;left:max(12px,env(safe-area-inset-left,0px))}
+@media (max-width:520px){.eng-chip{font-size:.72rem;padding:5px 10px}}
+.eng-status{margin:0;font-size:.88rem;color:var(--muted)}
+.eng-prog{display:grid;gap:6px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
+.eng-prog-top{display:flex;justify-content:space-between;gap:10px;font-size:.88rem}
+.eng-prog-bar{height:8px;border-radius:999px;background:var(--rule);overflow:hidden}
+.eng-prog-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease}
+.eng-lvl{border-color:var(--neon-normal,#00b85c)!important}
+.eng-opt{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--rule);border-radius:12px;padding:10px 12px;cursor:pointer}
+.eng-opt:has(input:checked){border-color:var(--ink)}
+.eng-opt input{margin-top:4px;accent-color:var(--ink)}
+.eng-opt b{display:block}.eng-opt small{color:var(--muted)}
+.eng-sub{display:grid;gap:6px;padding:0 4px 4px 32px;font-size:.88rem}
+.eng-sub select,.eng-sub input{font:inherit;font-size:.9rem;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--paper);color:var(--ink);max-width:100%}
+.eng-steps{margin:0;padding-left:1.2em;display:grid;gap:4px}
+.eng-steps code,.eng-sub code{font-family:var(--f-mono);font-size:.82em;background:var(--accent-soft);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+.row-flex{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+</style></head><body>
 <title>MedQuery</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2369,3 +2392,4 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   })();
 })();
 </script>
+</body></html>
