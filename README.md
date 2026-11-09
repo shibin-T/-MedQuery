@@ -8,7 +8,7 @@ A smart search engine for medical questions. One search bar for diseases and the
 
 | Folder | What it is | Where it runs |
 |---|---|---|
-| [`site/`](site/) | The MedQuery app: one self-contained web page (HTML, CSS and JavaScript in one file). | Inside Claude, as a published artifact. Answers, translation and report scanning use Claude through the page's built-in connection, so they only work there. |
+| [`site/`](site/) | The MedQuery app: `index.html` (the whole page) and `local-ai.js` (the free on-device AI). | **Inside Claude:** answers come from Claude. **Anywhere else** (e.g. GitHub Pages): answers come from an AI running free on the visitor's own device. |
 | [`care-map/`](care-map/) | MedQuery Care Map: a live street map of nearby hospitals and clinics, sorted nearest first. | Any static web host, such as GitHub Pages. Uses OpenStreetMap; needs no Claude and no API keys. |
 | [`docs/`](docs/) | Notes, including [`LEARNING.md`](docs/LEARNING.md), a beginner's guide to Git, GitHub and the code in this project. | Read on GitHub. |
 
@@ -22,18 +22,36 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Care near you:** nearby hospitals sorted by distance, directions in your map app, and copy and call buttons for 24/7 numbers, plus a one-tap emergency button.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
 
+## Free on-device AI (outside Claude)
+
+When MedQuery is opened outside Claude, it runs its AI on the visitor's own device, so it's free for everyone and questions stay private.
+
+- **In the browser** (no install): the first search asks to download a small open model once (Qwen 3.5, about 2–4 GB, chosen to suit the device). Needs a recent Chrome or Edge with WebGPU.
+- **With Ollama** (computers): install [Ollama](https://ollama.com), run `ollama pull qwen3:8b`, allow the site with `OLLAMA_ORIGINS=https://shibin-t.github.io`, then pick **Ollama** under *On-device AI* (top right).
+- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources (US National Library of Medicine's MedlinePlus and Clinical Tables, openFDA drug labels, RxNav, Europe PMC open-access research) and tells the model to answer only from them. Source links appear with every answer.
+- **Reports** are read with on-device text recognition (Tesseract.js); nothing is uploaded anywhere.
+- **Care near you** uses live OpenStreetMap hospital data.
+
+Small on-device models are less reliable than Claude, especially in Indian languages. Answers say so when sources are thin.
+
+### Run it on GitHub Pages
+1. Repo **Settings → Pages → Deploy from a branch → `main` / `(root)` → Save**.
+2. Open `https://shibin-t.github.io/-MedQuery/site/` after a minute or two.
+
 ## How the pieces fit together
 
 ```
-           you type a search / paste a report
-                         │
-                 site/index.html  (runs inside Claude)
-                         │
-     ┌───────────────────┼─────────────────────┐
-  Claude (answers,   browser storage        link: "Open live map"
-  report reading,    (recent searches,             │
-  translation)       city, language)       care-map/index.html
-                                           (OpenStreetMap, any web host)
+              you type a search / paste a report
+                            │
+                     site/index.html
+                            │
+          inside Claude?  ──┴──  anywhere else?
+                │                      │
+        Claude answers         site/local-ai.js
+                               ├─ AI on your device (WebLLM or Ollama)
+                               ├─ facts from MedlinePlus, openFDA, Europe PMC
+                               ├─ reports read on-device (Tesseract.js)
+                               └─ hospitals from OpenStreetMap
 ```
 
 ## Licence

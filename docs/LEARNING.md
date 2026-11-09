@@ -104,3 +104,16 @@ This change was published to the live site from another session, so it existed o
 - *Reproduce before fixing:* a bug you can make happen on demand is a bug you can prove is fixed.
 - *Test with realistic input:* my first test PDF was only a picture, which hid the font problem. A PDF with real text exposed it.
 - *Fail loudly and specifically:* a precise error message saves hours of guessing next time.
+
+### Commits: "Make site/index.html a complete web page…", "Add on-device AI engine…", "Use the on-device AI…"
+**Goal:** make MedQuery free for everyone by running the AI on the visitor's own device instead of Claude.
+
+**How it works:**
+1. **One switch point.** Every AI request in MedQuery already went through one function, `getSample()`. So the change only needed a decision in one place: *inside Claude, use Claude; anywhere else, load `local-ai.js`.* `local-ai.js` returns an object with the **same shape** as Claude's connection (`ai.json(prompt, options)`), so the rest of the app didn't need rewriting. This is called an **interface**, and it's one of the most useful ideas in programming: if two things can be used the same way, you can swap one for the other.
+2. **Modules.** `local-ai.js` is a separate file loaded with `import("./local-ai.js")` only when needed. Splitting code by job makes it easier to read, and it isn't downloaded inside Claude where it isn't used.
+3. **Grounding (retrieval).** Small models forget and invent things. So before asking the model, MedQuery fetches facts from free official sources and puts them in the prompt with the rule "use ONLY these sources". This pattern is often called **RAG** (retrieval-augmented generation).
+4. **Working with a small memory.** These models can only read about 4,000 *tokens* (word pieces) at once, so the prompts in `local-ai.js` are much shorter than Claude's, and the sources are trimmed to fit.
+5. **Defensive parsing.** Small models sometimes wrap JSON in extra text. `parseJSONLoose()` cleans that up before giving up. Always expect messy input from the outside world.
+6. **Feature detection.** `webgpuStatus()` checks what the browser can do before trying, and explains the alternative (Ollama) if it can't.
+
+**Try it:** after enabling GitHub Pages (see the README), open the site, search "dengue fever", accept the download, and compare the answer and its source links with the Claude version.
