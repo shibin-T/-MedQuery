@@ -1873,12 +1873,33 @@ Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility 
   });
 
   // load PDF.js only when a PDF is chosen (main-thread worker, since pages can't start workers from other sites)
+  // PDF.js is loaded only when a PDF is chosen. It runs on the page itself (a "main-thread worker"),
+  // because pages here can't start background workers from other sites. Two CDNs, in case one is unreachable.
   let pdfReady = null;
-  const loadScript = src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.append(s); });
+  const PDFJS_SOURCES = [
+    ["https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"],
+    ["https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js", "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"]
+  ];
+  const loadScript = (src, ms = 20000) => new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = src; s.async = true;
+    const t = setTimeout(() => { s.remove(); rej(new Error("timed out loading " + src)); }, ms);
+    s.onload = () => { clearTimeout(t); res(); }; s.onerror = () => { clearTimeout(t); s.remove(); rej(new Error("could not load " + src)); };
+    document.head.append(s);
+  });
   function loadPdfJs() {
-    pdfReady ||= loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js")
-      .then(() => loadScript("https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"))
-      .then(() => window.pdfjsLib);
+    if (window.pdfjsLib && window.pdfjsWorker?.WorkerMessageHandler) return Promise.resolve(window.pdfjsLib);
+    pdfReady ||= (async () => {
+      let last;
+      for (const [lib, worker] of PDFJS_SOURCES) {
+        try {
+          if (!window.pdfjsLib) await loadScript(lib);
+          if (!window.pdfjsWorker?.WorkerMessageHandler) await loadScript(worker);
+          if (window.pdfjsLib && window.pdfjsWorker?.WorkerMessageHandler) return window.pdfjsLib;
+          last = new Error("PDF reader loaded incompletely");
+        } catch (e) { last = e; }
+      }
+      throw Object.assign(last || new Error("PDF reader unavailable"), { pdfStage: "load" });
+    })().catch(e => { pdfReady = null; throw e; }); // allow a fresh try next time
     return pdfReady;
   }
   const canvasBlob = (c, q = .85) => new Promise(r => c.toBlob(b => r(b), "image/jpeg", q));
@@ -1894,19 +1915,32 @@ Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility 
   }
   async function readPdf(file, maxPages, wantImages) {
     const lib = await loadPdfJs();
-    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-    const pages = Math.min(doc.numPages, Math.max(1, maxPages)), images = []; let text = "";
+    let doc;
+    try {
+      // isEvalSupported:false avoids code evaluation, which the page's security rules can block; system fonts draw standard PDF fonts
+      doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false, disableFontFace: false, useSystemFonts: true, stopAtErrors: false }).promise;
+    } catch (e) { throw Object.assign(e, { pdfStage: e?.name === "PasswordException" ? "password" : "open" }); }
+    const pages = Math.min(doc.numPages, Math.max(1, maxPages)), images = []; let text = "", renderErr = null;
     for (let i = 1; i <= Math.min(doc.numPages, 6); i++) {
       const page = await doc.getPage(i);
-      const tc = await page.getTextContent(); text += "\n--- page " + i + " ---\n" + tc.items.map(t => t.str).join(" ");
+      // text and picture are read separately, so one failing doesn't lose the other
+      try {
+        const tc = await page.getTextContent();
+        text += "\n--- page " + i + " ---\n" + tc.items.map(t => (t.str || "") + (t.hasEOL ? "\n" : " ")).join("");
+      } catch (e) { renderErr ||= e; }
       if (wantImages && i <= pages) {
-        const vp1 = page.getViewport({ scale: 1 }), scale = Math.min(2.2, 1700 / vp1.width), vp = page.getViewport({ scale });
-        const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
-        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
-        await page.render({ canvasContext: g, viewport: vp }).promise; images.push(await canvasBlob(c));
+        try {
+          const vp1 = page.getViewport({ scale: 1 }), scale = Math.min(2.2, 1700 / vp1.width), vp = page.getViewport({ scale });
+          const c = document.createElement("canvas"); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+          const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+          await page.render({ canvasContext: g, viewport: vp }).promise;
+          const blob = await canvasBlob(c); if (blob) images.push(blob);
+        } catch (e) { renderErr ||= e; }
       }
+      page.cleanup?.();
     }
-    return { images, text: text.slice(0, 30000), numPages: doc.numPages };
+    const numPages = doc.numPages; doc.destroy?.();
+    return { images, text: text.slice(0, 60000), numPages, renderErr };
   }
 
   repFile.addEventListener("change", () => { const f = repFile.files?.[0]; repFile.value = ""; if (f) analyzeReport(f); });
@@ -1969,7 +2003,12 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       if (my !== repCtl) return;
       if (e?.code === "cancelled" || e?.name === "AbortError") return fail("Scan stopped", "Upload the report again whenever you like.");
       const copy = { images_unavailable: ["Image reading isn't available here", "This view of MedQuery can't send pictures to Claude. Reload the page and allow Claude when asked, or upload the lab's PDF instead."], sampling_disabled: ["Claude is turned off for this account", "Your account or organization doesn't allow pages to use Claude, so reports can't be read here. Ask your admin to turn it on."], not_granted: ["Claude access was not allowed", "Reading reports needs permission to use Claude from this page. Reload and allow it."], rate_limited: ["Too many requests right now", "Wait a minute, then upload again."], invalid_json: ["The reading came back incomplete", "Try again, or upload a clearer copy."], refused: ["This file can't be analysed here", "Upload a lab or test report."] }[e?.code];
-      fail(...(copy || [isPdf ? "The PDF couldn't be opened" : "The report couldn't be read", "Try again, or upload a different copy of the report."]));
+      const pdfCopy = e?.pdfStage === "password" ? ["This PDF is password-protected", "Open it, save or print a copy without a password, or take a screenshot of the results page and upload that."]
+        : e?.pdfStage === "load" ? ["The PDF reader couldn't load", "Your connection or network may be blocking it. Take a screenshot of the report and upload the image instead."]
+        : e?.pdfStage === "open" ? ["This PDF couldn't be opened", "The file may be damaged or not a real PDF. Try downloading it again from the lab, or upload a screenshot instead."] : null;
+      fail(...(copy || pdfCopy || [isPdf ? "The PDF couldn't be read" : "The report couldn't be read", "Try again, or upload a different copy of the report."]));
+      const detail = [e?.code, e?.name, e?.message].filter(Boolean).join(": ").slice(0, 160);
+      if (detail) $("#report .err")?.append(el("p", { class: "err-detail", text: "Technical detail (useful if you report this): " + detail }));
     }
   }
 

@@ -89,3 +89,18 @@ A separate page using **Leaflet** (an open-source map library) and **OpenStreetM
 2. Under *Build and deployment*, choose **Deploy from a branch**, pick **main** and **/ (root)**, then **Save**.
 3. After a minute, your map is live at `https://shibin-t.github.io/-MedQuery/care-map/`.
 4. Send me that link and I'll connect it to MedQuery's "Open live map" button.
+
+### Commit: "Make Call buttons open the phone dialer from inside Claude"
+This change was published to the live site from another session, so it existed on the site but not on GitHub. Before adding new work I copied it into the repo as its own commit. **Lesson:** when two places can change the same file, always bring in the other side's changes first (on GitHub this is *pull*), then add yours. Otherwise the second save silently erases the first.
+
+### Commit: "Fix PDF report reading"
+**The bug:** PDFs weren't being read. To debug it, I reproduced the live site's security rules on a test page and fed it real PDFs. That revealed:
+- The page image of a PDF could come out **blank**, because of a font setting, so Claude was shown an empty picture. Fixed by drawing standard PDF fonts with the device's system fonts.
+- If the PDF library failed to download, every later try failed too, because the failure was remembered. Now it retries, and falls back to a second download source (jsDelivr) if the first (cdnjs) is blocked.
+- Text and page pictures are now read separately, so a problem with one doesn't lose the other. Line breaks in the text are kept, so table rows stay on their own lines.
+- Each failure (damaged PDF, password-protected PDF, reader can't load) now has its own clear message, plus a short "technical detail" line.
+
+**Lessons:**
+- *Reproduce before fixing:* a bug you can make happen on demand is a bug you can prove is fixed.
+- *Test with realistic input:* my first test PDF was only a picture, which hid the font problem. A PDF with real text exposed it.
+- *Fail loudly and specifically:* a precise error message saves hours of guessing next time.
