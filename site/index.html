@@ -7,6 +7,54 @@
 [dir="rtl"] .eng-chip{right:auto;left:max(12px,env(safe-area-inset-left,0px))}
 @media (max-width:520px){.eng-chip{font-size:.72rem;padding:5px 10px}}
 .eng-status{margin:0;font-size:.88rem;color:var(--muted)}
+/* Experimental tag (yellow neon) */
+.exp-tag{display:inline-block;vertical-align:baseline;font:700 .68rem var(--f-body);letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;color:#3a2a00;background:#ffd60a;box-shadow:0 0 8px rgba(255,214,10,.65);white-space:nowrap}
+.exp-note{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.trial-list{margin:0;padding:0;list-style:none;display:grid;gap:10px}
+.trial-list li{display:grid;gap:2px}.trial-list small{color:var(--muted)}
+.exp-alert{border-color:#ffd60a!important}
+.def-src{font-size:.78rem;color:var(--muted);margin-top:4px}
+/* AI readiness: chip tones, banner and setup screen */
+.eng-chip[data-tone="off"] .eng-dot{background:#f5a524;box-shadow:0 0 8px #f5a524}
+.eng-chip[data-tone="bad"] .eng-dot{background:#e5484d;box-shadow:0 0 8px #e5484d}
+.eng-chip[data-tone="busy"] .eng-dot{background:#3b9eff;box-shadow:0 0 8px #3b9eff;animation:mqpulse 1.2s ease-in-out infinite}
+.eng-chip[data-tone="checking"] .eng-dot{background:var(--muted);box-shadow:none}
+@keyframes mqpulse{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.eng-chip[data-tone="busy"] .eng-dot{animation:none}}
+.ai-banner{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px 16px;margin:14px auto 0;max-width:100%;border:1.5px solid var(--ink);border-radius:14px;background:var(--card);padding:14px 16px;box-shadow:3px 3px 0 var(--ink)}
+.ai-banner[hidden]{display:none}
+.ai-banner-text{display:grid;gap:2px;min-width:0}
+.ai-banner-text span{font-size:.9rem;color:var(--muted)}
+.ai-banner .eng-prog-bar{grid-column:1/-1;grid-row:2}
+.ai-banner .guide-ok,.ai-banner .stop{white-space:nowrap}
+@media (max-width:560px){.ai-banner{grid-template-columns:minmax(0,1fr)}.ai-banner .eng-prog-bar{grid-row:auto}}
+.guide.setup{gap:12px}
+.setup-h{margin:6px 0 0;font:650 1rem var(--f-body)}
+.setup-pending{margin:0;padding:8px 12px;border-radius:10px;background:var(--accent-soft);font-weight:600}
+.setup-warn{margin:0;padding:8px 12px;border-radius:10px;border:1px solid #e5484d;color:var(--ink)}
+.chk-list,.setup-tips{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.setup-tips{list-style:disc;padding-left:1.2em;font-size:.88rem;color:var(--muted)}
+.chk{display:flex;gap:10px;align-items:flex-start}
+.chk div{display:grid;gap:1px;min-width:0}.chk small{color:var(--muted)}
+.chk-ic{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.8rem;color:#fff;background:#00a650}
+.chk[data-ok="no"] .chk-ic{background:#e5484d}.chk[data-ok="warn"] .chk-ic{background:#f5a524;color:#1b1b1b}
+.size-opts{display:grid;gap:8px}
+.size-opt{display:flex;gap:10px;align-items:flex-start;border:1.5px solid var(--rule);border-radius:12px;padding:10px 12px;cursor:pointer}
+.size-opt:has(input:checked){border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.size-opt input{margin-top:4px;accent-color:var(--ink)}
+.size-opt b{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.size-opt small{display:block;color:var(--muted)}
+.size-opt em{font-style:normal;font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:999px;background:var(--accent-soft)}
+.use-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.use-table th{text-align:left;vertical-align:top;padding:6px 10px 6px 0;white-space:nowrap;width:1%}
+.use-table td{padding:6px 0;color:var(--ink)}
+.use-table tr+tr>*{border-top:1px solid var(--rule)}
+@media (max-width:520px){.use-table th{white-space:normal;width:34%}}
+.setup-actions{display:flex;flex-wrap:wrap;gap:8px}
+.stop.danger{border-color:#e5484d;color:#c0262d}
+.eng-steps.big{gap:12px;font-size:.92rem}
+.code-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.os-codes{display:grid;gap:2px;margin-top:6px}.os-codes small{color:var(--muted);margin-top:4px}
+.guide-ok[disabled]{opacity:.45;cursor:not-allowed}
 .eng-prog{display:grid;gap:6px;border:1px solid var(--rule);border-radius:10px;padding:10px 12px}
 .eng-prog-top{display:flex;justify-content:space-between;gap:10px;font-size:.88rem}
 .eng-prog-bar{height:8px;border-radius:999px;background:var(--rule);overflow:hidden}
@@ -636,7 +684,14 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     { name: "UK Biobank studies", tag: "500,000-person cohort", url: q => "https://europepmc.org/search?query=(" + q + ")%20AND%20%22UK%20Biobank%22%20AND%20(OPEN_ACCESS%3Ay)" },
     { name: "1000 Genomes Project (Ensembl)", tag: "genetics", url: q => "https://www.ensembl.org/Human/Search/Results?q=" + q + ";site=ensembl;facet_species=Human" },
     { name: "CDC WONDER", tag: "US statistics", url: () => "https://wonder.cdc.gov/" },
-    { name: "HealthData.gov", tag: "US datasets", url: q => "https://healthdata.gov/browse?q=" + q }
+    { name: "HealthData.gov", tag: "US datasets", url: q => "https://healthdata.gov/browse?q=" + q },
+    { name: "ClinicalTrials.gov", tag: "experimental treatments", url: q => "https://clinicaltrials.gov/search?term=" + q },
+    { name: "WHO trials registry (ICTRP)", tag: "trials worldwide", url: () => "https://trialsearch.who.int/" },
+    { name: "MeSH (medical terms, NLM)", tag: "definitions", url: q => "https://www.ncbi.nlm.nih.gov/mesh/?term=" + q },
+    { name: "Mondo / Orphanet (rare diseases)", tag: "disease ontology", url: q => "https://www.ebi.ac.uk/ols4/search?q=" + q + "&ontology=mondo" },
+    { name: "ClinVar (NCBI)", tag: "genetic variants", url: q => "https://www.ncbi.nlm.nih.gov/clinvar/?term=" + q },
+    { name: "ChEMBL (EMBL-EBI)", tag: "drug approval stage", url: q => "https://www.ebi.ac.uk/chembl/g/#search_results/all/query=" + q },
+    { name: "LOINC (lab tests)", tag: "test codes", url: q => "https://loinc.org/search/?t=1&s=" + q }
   ];
   // Where a named source's "Read" link should go when the answer has no direct article link
   function sourceLink(source, title) {
@@ -645,6 +700,14 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     if (/healthdata\.gov/.test(src)) return "https://healthdata.gov/browse?q=" + q;
     if (/global index medicus|\bgim\b|lilacs|imsear|african index medicus|imemr|wprim/.test(src)) return "https://pesquisa.bvsalud.org/gim/?lang=en&q=" + q;
     if (/1000 genomes/.test(src)) { const rs = title.match(/\brs\d+\b/i); return rs ? "https://www.ensembl.org/Homo_sapiens/Variation/Population?v=" + rs[0].toLowerCase() : "https://www.ensembl.org/Human/Search/Results?q=" + q + ";site=ensembl;facet_species=Human"; }
+    if (/clinicaltrials|clinical trial/.test(src)) { const nct = title.match(/\bNCT\d{8}\b/i); return nct ? "https://clinicaltrials.gov/study/" + nct[0].toUpperCase() : "https://clinicaltrials.gov/search?term=" + q; }
+    if (/ictrp|who trial/.test(src)) return "https://trialsearch.who.int/";
+    if (/\bmesh\b/.test(src)) return "https://www.ncbi.nlm.nih.gov/mesh/?term=" + q;
+    if (/mondo|orphanet/.test(src)) return "https://www.ebi.ac.uk/ols4/search?q=" + q + "&ontology=mondo";
+    if (/clinvar/.test(src)) return "https://www.ncbi.nlm.nih.gov/clinvar/?term=" + q;
+    if (/chembl/.test(src)) return "https://www.ebi.ac.uk/chembl/g/#search_results/all/query=" + q;
+    if (/loinc/.test(src)) return "https://loinc.org/search/?t=1&s=" + q;
+    if (/cochrane/.test(src)) return "https://pubmed.ncbi.nlm.nih.gov/?term=(" + q + ")%20AND%20%22Cochrane%20Database%20Syst%20Rev%22%5Bjournal%5D";
     if (/uk biobank/.test(src)) return "https://europepmc.org/search?query=" + q + "%20AND%20%22UK%20Biobank%22";
     return "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)";
   }
@@ -681,7 +744,11 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     : /symptom|cause|prevent|remed|used for|before the test|risk|monitor|pregnan/i.test(t) ? "medium" : "info";
   const impTag = lvl => el("span", { class: "imp-tag", text: IMP_LABEL[lvl] });
   const sec = (title, ...kids) => { const lvl = IMP(title); return el("section", { class: "sec", tabindex: "0", "data-imp": lvl, style: "--blk:" + TONE(title) }, el("h3", {}, el("span", { class: "h3-text", text: title }), impTag(lvl)), ...kids); };
-  const blist = (items, cls) => { const ul = el("ul", cls ? { class: cls } : {}); arr(items).map(str).filter(Boolean).forEach(x => ul.append(el("li", { text: x }))); return ul; };
+  // Anything not approved for routine use is tagged "Experimental"
+  const EXP_RE = /^\s*\[?experimental\]?\s*[:\-–—]\s*/i;
+  const expTag = () => el("span", { class: "exp-tag", title: "Not approved for routine use. Only available in clinical trials or still being researched.", text: "Experimental" });
+  const expText = t => EXP_RE.test(t) ? el("span", {}, expTag(), " " + t.replace(EXP_RE, "")) : t;
+  const blist = (items, cls) => { const ul = el("ul", cls ? { class: cls } : {}); arr(items).map(str).filter(Boolean).forEach(x => ul.append(EXP_RE.test(x) ? el("li", {}, expText(x)) : el("li", { text: x }))); return ul; };
   const has = a => arr(a).some(x => (typeof x === "string" ? str(x) : x));
   function table(cols, rows) {
     const t = el("table"), tr = el("tr");
@@ -739,7 +806,7 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       for (const x of evItems) {
         const label = [str(x.source), str(x.title), str(x.year)].filter(Boolean).join(" · ");
         const href = /^https:\/\//.test(str(x.url)) ? str(x.url) : sourceLink(str(x.source), str(x.title) || str(x.source));
-        const isData = /dataset|cdc wonder|1000 genomes|healthdata\.gov/i.test(str(x.source));
+        const isData = /dataset|cdc wonder|1000 genomes|healthdata\.gov|chembl|clinvar|mondo|mesh|loinc/i.test(str(x.source));
         ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href, target: "_blank", rel: "noopener", text: isData ? "Open data ↗" : "Read free ↗" })));
       }
       r.append(el("details", { class: "evidence", ...(conf && conf !== "high" ? { open: "" } : {}) },
@@ -795,7 +862,7 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       const sel = el("select", { id: "cur", "aria-label": "Currency" });
       Object.keys(FX).forEach(c => sel.append(el("option", { value: c, text: c }))); sel.value = currency;
       const tblHost = el("div");
-      const draw = () => tblHost.replaceChildren(table(["Treatment", "How it's given", "Approx. cost", "Notes"], tr.map(t => [str(t.option), str(t.route) || "—", el("span", { class: "money", text: costText(t) + (str(t.unit) ? " " + str(t.unit) : "") }), str(t.note)])));
+      const draw = () => tblHost.replaceChildren(table(["Treatment", "How it's given", "Approx. cost", "Notes"], tr.map(t => [t.experimental || EXP_RE.test(str(t.option)) ? el("span", {}, expTag(), " " + str(t.option).replace(EXP_RE, "")) : str(t.option), str(t.route) || "—", el("span", { class: "money", text: costText(t) + (str(t.unit) ? " " + str(t.unit) : "") }), str(t.note)])));
       sel.addEventListener("change", () => { currency = sel.value; try { localStorage.setItem("medquery.cur", currency); } catch {} draw(); });
       draw();
       body.append(sec("Treatment options & cost",
@@ -803,6 +870,22 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
         tblHost,
         el("p", { class: "note", text: "Rough estimates only. INR figures are typical Indian prices; other currencies are converted from typical US prices at approximate exchange rates. Real costs vary a lot by country, hospital and insurance." })));
     }
+    renderExperimental(d, body, str(d.title));
+  }
+  // Experimental treatments: named by the answer (d.experimental) and/or live trials from ClinicalTrials.gov (d.trials)
+  function renderExperimental(d, body, term) {
+    const ex = arr(d.experimental).filter(x => str(x?.name)), trials = arr(d.trials).filter(x => str(x?.nct));
+    if (!ex.length && !trials.length) return;
+    const parts = [el("p", { class: "note exp-note" }, expTag(), " Not approved for routine use. These are being tested in clinical trials or early research, may not work and can have unknown risks. Ask a doctor whether a trial suits you.")];
+    if (ex.length) parts.push(table(["Treatment", "Stage", "Notes"], ex.map(x => [el("span", {}, expTag(), " " + str(x.name)), str(x.stage) || "—", [str(x.route), str(x.note)].filter(Boolean).join(". ")])));
+    if (trials.length) {
+      const ul = el("ul", { class: "trial-list" });
+      for (const t of trials) ul.append(el("li", {}, el("div", {}, expTag(), " ", el("a", { href: t.url, target: "_blank", rel: "noopener", text: t.title })),
+        el("small", { text: [t.phase, t.status, arr(t.interventions).length ? "Testing: " + t.interventions.join(", ") : "", t.nct].filter(Boolean).join(" · ") })));
+      parts.push(el("h4", { text: "Clinical trials open now (ClinicalTrials.gov)" }), ul);
+    }
+    parts.push(el("p", { class: "note" }, "Find more: ", el("a", { href: "https://clinicaltrials.gov/search?term=" + encodeURIComponent(term), target: "_blank", rel: "noopener", text: "ClinicalTrials.gov ↗" }), " · ", el("a", { href: "https://trialsearch.who.int/", target: "_blank", rel: "noopener", text: "WHO trials registry ↗" })));
+    const s2 = sec("Experimental treatments", ...parts); s2.classList.add("is-exp"); body.append(s2);
   }
 
   function testLink(name) {
@@ -872,6 +955,10 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
 
   function renderDrug(d, body) {
     const g = d.drug || {};
+    const stt = str(g.status).toLowerCase();
+    if (stt === "experimental" || stt === "withdrawn" || stt === "research") body.append(el("div", { class: "alert exp-alert", role: "note", "data-imp": "high" },
+      el("strong", {}, stt === "withdrawn" ? el("span", { class: "h3-text", text: "Withdrawn from the market" }) : expTag()),
+      " " + (str(g.statusNote) || (stt === "withdrawn" ? "This medicine has been withdrawn in at least one major market." : "This medicine is not approved for routine use; it is still being tested or researched."))));
     if (str(g.class) || str(g.howItWorks)) body.append(sec("What it is", el("p", { text: [str(g.class), str(g.howItWorks)].filter(Boolean).join(". ") })));
     const ad = g.administration || {};
     if (has(ad.routes) || str(ad.how)) body.append(sec("How it's taken", has(ad.routes) ? el("div", { class: "routes" }, ...arr(ad.routes).map(str).filter(Boolean).map(x => el("span", { class: "route", text: x }))) : null, str(ad.how) ? el("p", { text: str(ad.how) }) : null));
@@ -881,11 +968,13 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       has(g.seriousSideEffects) ? el("div", {}, el("h4", { text: "Serious, get help" }), blist(g.seriousSideEffects)) : null)));
     if (has(g.cautions)) body.append(sec("Who should be careful", blist(g.cautions)));
     if (has(g.interactions)) body.append(sec("Interactions", blist(g.interactions)));
+    renderExperimental(d, body, str(d.title));
   }
 
   function renderQuestion(d, body) {
     if (str(d.answer)) body.append(sec("Answer", ...str(d.answer).split(/\n{2,}/).map(p => el("p", { text: p }))));
     if (has(d.points)) body.append(sec("Key points", blist(d.points)));
+    renderExperimental(d, body, str(d.title));
   }
 
   function renderLoading(q, detail) {
@@ -922,7 +1011,7 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     const length = detail
       ? `LENGTH: DETAILED version. Fill every field fully (lists up to 8 items, each item one or two sentences) and add 3-5 "details" sections (for diseases: Pathology & pathophysiology, Complications, Outlook, Who is at risk; for tests: How it is done, What can affect results, Follow-up tests; for drugs: Typical dosing (general, "as prescribed"), Monitoring, Pregnancy & breastfeeding). About 700-1000 words.`
       : `LENGTH: QUICK version. Brief and simple, plain words a non-medical reader understands. Each list item is a short phrase (under 10 words). Lists 3-5 items. Summary one or two short sentences. "details": []. About 200-350 words total.`;
-    return `You are MedQuery, a medical reference engine. Base every statement STRICTLY on the best freely accessible (open-access, not paywalled) medical evidence: open-access peer-reviewed journals and articles (e.g. PubMed Central / Europe PMC open-access articles, Cochrane review abstracts and plain-language summaries, BMJ Open, PLOS Medicine, BMC Medicine and other BMC journals, JAMA Network Open, eClinicalMedicine, The Lancet's open-access titles), free clinical references (NCBI Bookshelf / StatPearls, MedlinePlus) and free public guidelines and labels (WHO, CDC, NICE, NIH, national health ministries such as ICMR/MoHFW, FDA DailyMed). Also use these open health databases where they fit: CDC WONDER (US mortality, births and disease-surveillance statistics; say the figures are US and give the data year), Global Index Medicus (WHO's index of research from low- and middle-income countries, e.g. LILACS, African Index Medicus, IMSEAR; prefer it for diseases common in those regions and for local evidence), UK Biobank (cite published open-access studies of this 500,000-person UK cohort for risk factors, genetics and outcomes; note that its participants are mostly white British adults aged 40-69 at recruitment, so findings may not apply everywhere), 1000 Genomes Project (population frequencies of genetic variants across African, American, East Asian, European and South Asian groups; use for genetic questions and rsIDs) and HealthData.gov (US public health datasets; name a dataset only if you are confident it exists). When one of these is used, put its name in "source" (e.g. "CDC WONDER", "Global Index Medicus", "UK Biobank study · <journal>", "1000 Genomes Project", "HealthData.gov"). Do not rely on paywalled-only sources. If open-access evidence is thin, mixed, preliminary or you are unsure, say so plainly in "uncertainty", lower "confidence", and set "needsResearch" true when more research is needed. Never invent studies, statistics, titles or citations; name only real sources you are confident exist. Never give personalised dosing. If the query is not medical, use kind "question" and say MedQuery covers medical topics. If it describes an emergency, fill "urgent".
+    return `You are MedQuery, a medical reference engine. Base every statement STRICTLY on the best freely accessible (open-access, not paywalled) medical evidence: open-access peer-reviewed journals and articles (e.g. PubMed Central / Europe PMC open-access articles, Cochrane review abstracts and plain-language summaries, BMJ Open, PLOS Medicine, BMC Medicine and other BMC journals, JAMA Network Open, eClinicalMedicine, The Lancet's open-access titles), free clinical references (NCBI Bookshelf / StatPearls, MedlinePlus) and free public guidelines and labels (WHO, CDC, NICE, NIH, national health ministries such as ICMR/MoHFW, FDA DailyMed). Also use these open health databases where they fit: CDC WONDER (US mortality, births and disease-surveillance statistics; say the figures are US and give the data year), Global Index Medicus (WHO's index of research from low- and middle-income countries, e.g. LILACS, African Index Medicus, IMSEAR; prefer it for diseases common in those regions and for local evidence), UK Biobank (cite published open-access studies of this 500,000-person UK cohort for risk factors, genetics and outcomes; note that its participants are mostly white British adults aged 40-69 at recruitment, so findings may not apply everywhere), 1000 Genomes Project (population frequencies of genetic variants across African, American, East Asian, European and South Asian groups; use for genetic questions and rsIDs) and HealthData.gov (US public health datasets; name a dataset only if you are confident it exists), MeSH (NLM's medical vocabulary, for precise definitions), Cochrane systematic reviews (prefer them for whether treatments work), Mondo Disease Ontology / Orphanet (rare diseases), ClinVar (clinical meaning of genetic variants), ChEMBL (whether a medicine is approved or still in trials), LOINC (lab test names and codes), ClinicalTrials.gov and the WHO trials registry ICTRP (experimental treatments; cite an NCT number only if you are certain it is real). When one of these is used, put its name in "source" (e.g. "CDC WONDER", "Global Index Medicus", "UK Biobank study · <journal>", "1000 Genomes Project", "HealthData.gov"). Do not rely on paywalled-only sources. If open-access evidence is thin, mixed, preliminary or you are unsure, say so plainly in "uncertainty", lower "confidence", and set "needsResearch" true when more research is needed. Never invent studies, statistics, titles or citations; name only real sources you are confident exist. Never give personalised dosing. If the query is not medical, use kind "question" and say MedQuery covers medical topics. If it describes an emergency, fill "urgent".
 ${hint}${ctx}
 Query: """${q.slice(0, 2000)}"""
 
@@ -930,10 +1019,11 @@ ${length}
 
 Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects {"source": open-access journal, free guideline body or open database, "title": real article/guideline title, topic page, dataset or variant (e.g. rs334) you are confident exists, "year": "YYYY or ''"}), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
 Then the fields for that kind:
-- disease: "definition" (1-2 plain sentences), "symptoms": {"common": [...], "uncommon": [...]}, "causes": [...], "tests": [{"name","why"}] (screening and confirmatory tests), "homeRemedies": {"applicable": true only for simple, usually self-limiting conditions (e.g. common cold, mild gastroenteritis, minor burns) else false, "note": "one line on when to see a doctor, or why home remedies are not appropriate", "items": [{"name","how": "one-line recipe/method","allergens": [list every known common allergen in it, e.g. milk, egg, peanut, tree nuts, soy, wheat/gluten, sesame, mustard, fish, shellfish, celery, honey (never for infants under 1), citrus, turmeric, ginger, garlic, pollen; [] if none]}]} — only well-established safe remedies, "prevention": [...], "treatments": [{"option","route": "for medicines: how it is given (route + form, e.g. Oral tablet, IV injection, Inhaler, Eye drops); '' for non-medicine treatments","note": "short","usd": [low, high] typical US cost as numbers,"inr": [low, high] typical Indian cost as numbers,"unit": "e.g. per course, per month, one-time"}].
+- disease: "definition" (1-2 plain sentences), "symptoms": {"common": [...], "uncommon": [...]}, "causes": [...], "tests": [{"name","why"}] (screening and confirmatory tests), "homeRemedies": {"applicable": true only for simple, usually self-limiting conditions (e.g. common cold, mild gastroenteritis, minor burns) else false, "note": "one line on when to see a doctor, or why home remedies are not appropriate", "items": [{"name","how": "one-line recipe/method","allergens": [list every known common allergen in it, e.g. milk, egg, peanut, tree nuts, soy, wheat/gluten, sesame, mustard, fish, shellfish, celery, honey (never for infants under 1), citrus, turmeric, ginger, garlic, pollen; [] if none]}]} — only well-established safe remedies, "prevention": [...], "treatments": [{"option","route": "for medicines: how it is given (route + form, e.g. Oral tablet, IV injection, Inhaler, Eye drops); '' for non-medicine treatments","note": "short","usd": [low, high] typical US cost as numbers,"inr": [low, high] typical Indian cost as numbers,"unit": "e.g. per course, per month, one-time","experimental": false}], "experimental": [{"name","stage": "e.g. Phase 2 trials, preclinical research","route","note": "what it is and how promising, one line"}] (0-4 notable treatments being tested in trials; [] if none you are confident about).
 - test: "purpose", "specimen", "preparation", "components": [{"name","normal": "typical adult normal range","unit": "conventional unit","depends": true if the normal value meaningfully changes with age, sex, pregnancy or another factor}] — list EVERY element/parameter the test reports (e.g. CBC: hemoglobin, hematocrit, RBC, MCV, MCH, MCHC, RDW, WBC, neutrophils, lymphocytes, monocytes, eosinophils, basophils, platelets), "factors": [the factors the ranges depend on, from: "age","sex","pregnancy","fasting"], "highLow": [{"finding": "e.g. High ALT","meaning"}].
-- drug: "drug": {"class","howItWorks","administration": {"routes": ["every available route + form, e.g. Oral tablet", "IV injection", "Topical gel"], "how": "1-2 plain sentences on how and when it is taken or given (with or without food, who gives it, how often in general terms; never personal doses)"},"uses": [...],"commonSideEffects": [...],"seriousSideEffects": [...],"cautions": [...],"interactions": [...]}.
+- drug: "drug": {"class","howItWorks","administration": {"routes": ["every available route + form, e.g. Oral tablet", "IV injection", "Topical gel"], "how": "1-2 plain sentences on how and when it is taken or given (with or without food, who gives it, how often in general terms; never personal doses)"},"uses": [...],"commonSideEffects": [...],"seriousSideEffects": [...],"cautions": [...],"interactions": [...],"status": "approved|experimental|withdrawn","statusNote": "one line, e.g. approved by the FDA in 1995; or only available in phase 3 trials"}, "experimental": [] (experimental new uses of this medicine being tested, same shape as for diseases).
 - question: "answer" (direct answer, plain text), "points": [...].
+EXPERIMENTAL: anything not approved for routine use by major regulators (FDA, EMA, CDSCO or WHO-listed) — treatments only available in clinical trials, early research, off-label uses with weak evidence — must be marked experimental: in "treatments" set "experimental": true; in any list or answer start the item with "Experimental: ". Never present an experimental treatment as standard care.
 MEDICINES: whenever you name a specific medicine anywhere (treatments, answers, points, details), always state how it is given: route and form (e.g. "oral tablet", "IV infusion in hospital", "inhaler", "skin cream", "injection under the skin").${LANG_NOTE()}`;
   }
 
@@ -958,9 +1048,16 @@ MEDICINES: whenever you name a specific medicine anywhere (treatments, answers, 
     pop.replaceChildren(close, el("div", { class: "meta", text: "Meaning" }), title, bodyEl);
     pop.hidden = false; placePop(rect);
     const local = INDEX.find(x => x.term.toLowerCase() === term.toLowerCase() || x.term.toLowerCase().startsWith(term.toLowerCase() + " ("));
+    defCtl?.abort(); const my = defCtl = new AbortController();
+    if (!IN_CLAUDE && MQL) {
+      // Outside Claude: use the official MeSH definition first (no AI needed, written by NLM indexers)
+      const m = await MQL.meshDefine(term).catch(() => null);
+      if (my !== defCtl) return;
+      if (m) { title.textContent = m.term; bodyEl.textContent = m.definition; pop.append(el("div", { class: "def-src" }, "Source: ", el("a", { href: m.url, target: "_blank", rel: "noopener", text: "MeSH, US National Library of Medicine ↗" })), el("button", { class: "linkish def-more", type: "button", text: "Search “" + m.term + "” →", onclick: () => { hidePop(); mode = "auto"; input.value = m.term; run(m.term); } })); placePop(rect); return; }
+      if (!MQL.isSetUp()) { bodyEl.textContent = local ? local.note + "." : "No official definition found. Set up the AI to explain other words."; placePop(rect); return; }
+    }
     const s = await getSample();
     if (!s) { bodyEl.textContent = local ? local.note + "." : "Definitions need Claude, which only runs when this page is opened in Claude."; placePop(rect); return; }
-    defCtl?.abort(); const my = defCtl = new AbortController();
     const context = ($("#report h2")?.textContent || "").slice(0, 80);
     try {
       const res = await s.json(`Define the term "${term.slice(0, 80)}" as used in a medical answer about "${context}". Reply with ONLY JSON: {"medical": true|false, "term": "canonical term", "definition": "one or two plain sentences a non-medical reader understands, under 40 words"}. If it is not a medical or health-related word, set medical false and definition "".${LANG_NOTE()}`, { modelTier: "quick", signal: my.signal, cache: { gcTime: 24 * 3600 * 1000 } });
@@ -1913,7 +2010,7 @@ Reply with ONLY JSON, keys in this order${LANG_NOTE() ? " (" + LANG_NOTE().trim(
 
   // ---------- Home + "What is MedQuery?" widget ----------
   let aboutTurns = [], aboutCtl = null;
-  const ABOUT_RULES = `You are the help assistant inside MedQuery, a free medical reference website. Answer questions about what MedQuery is and how to use it, briefly (under 80 words), in plain language. Facts about MedQuery: one search bar for diseases (definition, pathology, symptoms, causes, tests, safe home remedies with allergen warnings, prevention, treatments with rough costs), medical tests (every element tested with normal values, plus a box to enter age/sex/pregnancy for personal ranges) and medicines (uses, side effects, cautions, interactions); any medical question can be asked; answers are quick by default with a "Show the detailed version" button; highlight any word in an answer to see its meaning; answers are based on free, open-access medical sources (open journals, WHO, CDC, NIH, plus open databases: CDC WONDER statistics, WHO's Global Index Medicus, published UK Biobank studies, the 1000 Genomes Project and HealthData.gov) and say when evidence is uncertain; a "Care near you" panel suggests hospitals and clinics for your city and has an emergency call button; it is general information, not a diagnosis, and never replaces a doctor. If the user asks a medical question, give a one-line pointer and suggest they type it in the search bar.`;
+  const ABOUT_RULES = `You are the help assistant inside MedQuery, a free medical reference website. Answer questions about what MedQuery is and how to use it, briefly (under 80 words), in plain language. Facts about MedQuery: one search bar for diseases (definition, pathology, symptoms, causes, tests, safe home remedies with allergen warnings, prevention, treatments with rough costs), medical tests (every element tested with normal values, plus a box to enter age/sex/pregnancy for personal ranges) and medicines (uses, side effects, cautions, interactions); any medical question can be asked; answers are quick by default with a "Show the detailed version" button; highlight any word in an answer to see its meaning; answers are based on free, open-access medical sources (open journals, WHO, CDC, NIH, plus open databases: CDC WONDER statistics, WHO's Global Index Medicus, published UK Biobank studies, the 1000 Genomes Project HealthData.gov, MeSH, Cochrane reviews, Mondo/Orphanet, ClinVar, ChEMBL, LOINC, ClinicalTrials.gov and the WHO trials registry) and say when evidence is uncertain; anything experimental (only in trials or early research) is tagged "Experimental"; outside Claude, the free on-device AI must be set up once (the "AI" button at the top right shows whether it's ready) before searching; a "Care near you" panel suggests hospitals and clinics for your city and has an emergency call button; it is general information, not a diagnosis, and never replaces a doctor. If the user asks a medical question, give a one-line pointer and suggest they type it in the search bar.`;
   function openAbout() {
     let w = $("#about");
     if (w) { w.hidden = false; w.querySelector("input")?.focus(); return; }
@@ -2280,6 +2377,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   }
 
   async function analyzeReport(file) {
+    if (!(await aiGate({ type: "report", file }))) return; // outside Claude: wait until the on-device AI is set up
     closeZoom?.(); hidePop(); openPanel(false);
     document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
     lastRun = null; careCtl?.abort();
@@ -2412,7 +2510,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     await claudeCheck;
     if (IN_CLAUDE) { try { sample = await window.claude.use("sample"); } catch { sample = null; } }
     else {
-      try { await loadLocalModule(); sample = await MQL.getSampler({ onProgress: p => engineProgress(p), confirmDownload: st => confirmDownload(st) }); }
+      try { await loadLocalModule(); sample = await MQL.getSampler({ onProgress: p => engineProgress(p), needSetup: () => openSetup() }); }
       catch (e) { console.warn("On-device AI unavailable:", e); sample = null; }
     }
     sampleChecked = true;
@@ -2430,76 +2528,233 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       return { kind, term: str(r?.term) || q };
     } catch (e) { if (e?.code === "cancelled") throw e; return { kind: looksLikeQuestion(q) ? "question" : "disease", term: q }; }
   }
+  // ---------- On-device AI: status, one-time setup, and the search gate ----------
+  // States: checking → not_setup | unsupported → setting_up → ready. Searches and reports wait until "ready".
+  const AI = { state: "checking", pct: 0, line: "", eta: "", pending: null, device: null, error: "", evicted: false, view: "" };
+  function setAI(state, extra = {}) { Object.assign(AI, { state }, extra); updateEngineChip(); updateAIBanner(); if (setupBox?.isConnected) drawSetup(); }
+  const gb = n => (n < 10 ? n.toFixed(1) : Math.round(n)) + " GB";
+  const pickModel = id => MQL.BROWSER_MODELS.find(m => m.id === id) || MQL.BROWSER_MODELS[0];
+
+  // Progress from the model download / start-up, shared by the setup screen, banner, chip and search screen
   function engineProgress(p) {
-    const n = document.getElementById("engProg"); if (!n) return;
-    const pct = Math.round((p.progress || 0) * 100);
-    n.hidden = false; n.querySelector("b").textContent = pct + "%"; n.querySelector("i").style.width = pct + "%";
-    n.querySelector("span").textContent = /cache|Loading model from cache/i.test(p.text) ? "Loading the AI from this device" : "Downloading the AI model (one time only)";
+    const pct = Math.round((p.progress || 0) * 100), txt = str(p.text);
+    const fromDisk = /cache/i.test(txt) && !/fetch/i.test(txt);
+    const mb = +(txt.match(/(\d+(?:\.\d+)?)\s*MB fetched/i)?.[1] || 0), secs = +(txt.match(/(\d+)\s*secs? elapsed/i)?.[1] || 0);
+    let eta = "";
+    if (!fromDisk && secs > 5 && p.progress > .02 && p.progress < 1) { const left = secs * (1 - p.progress) / p.progress; eta = left > 90 ? "about " + Math.round(left / 60) + " min left" : "under 2 min left"; }
+    const line = fromDisk ? "Starting the AI from this device" : mb ? "Downloaded " + (mb / 1000).toFixed(1) + " GB" : "Downloading the AI (one time only)";
+    if (AI.state === "setting_up") { AI.pct = pct; AI.line = line; AI.eta = eta; updateEngineChip(); updateAIBanner(); if (setupBox?.isConnected) drawProgress(); }
+    const n = document.getElementById("engProg");
+    if (n) { n.hidden = false; n.querySelector("b").textContent = pct + "%"; n.querySelector("i").style.width = pct + "%"; n.querySelector("span").textContent = fromDisk ? "Starting the AI on this device (takes a few seconds after a break)" : line; }
   }
-  function confirmDownload(st) {
-    return new Promise(async resolve => {
-      const mdl = MQL.BROWSER_MODELS.find(m => m.id === st.model) || MQL.BROWSER_MODELS[0];
-      const gpu = await MQL.webgpuStatus();
-      const done = v => { box.remove(); resolve(v); };
-      const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "dlTitle" }, el("section", { class: "guide" },
-        el("h2", { id: "dlTitle", class: "guide-title", text: gpu.ok ? "Download the free on-device AI?" : "This browser can't run the on-device AI" }),
-        gpu.ok ? el("p", { class: "guide-lede", text: `MedQuery answers using an AI that runs on your own device, so it's free and private. The first time, it downloads ${mdl.label.split(" (")[0]} (about ${mdl.gb} GB). It's stored in this browser, so later visits start quickly, even offline.` })
-               : el("p", { class: "guide-lede", text: gpu.reason }),
-        el("ul", {}, el("li", { text: "Best on Wi-Fi. Large downloads can use your mobile data." }), el("li", { text: "Needs a recent Chrome or Edge with enough memory; older phones may be slow." }), el("li", { text: "Answers are checked against free official sources before you see them." })),
-        el("div", { class: "guide-actions" },
-          el("button", { class: "stop", type: "button", text: "Choose another model or Ollama", onclick: () => { done(false); openEngineSettings(); } }),
-          gpu.ok ? el("button", { class: "guide-ok", type: "button", text: "Download (" + mdl.gb + " GB)", onclick: () => done(true) }) : el("button", { class: "guide-ok", type: "button", text: "Close", onclick: () => done(false) }))));
-      document.body.append(box); box.querySelector(".guide-ok")?.focus();
-    });
+
+  // Stop here until the AI is set up; remember what the person wanted to do and do it afterwards
+  async function aiGate(pending) {
+    await claudeCheck; if (IN_CLAUDE) return true;
+    try { await loadLocalModule(); } catch { toast("MedQuery couldn't load its AI files. Check your internet and reload the page."); return false; }
+    if (MQL.isSetUp()) return true;
+    AI.pending = pending; openSetup();
+    return false;
   }
-  async function openEngineSettings() {
-    await loadLocalModule();
-    const st = MQL.loadSettings(); if (!st.model) st.model = await MQL.suggestModel();
-    const close = () => box.remove();
-    const radio = (v, label, sub) => el("label", { class: "eng-opt" }, el("input", { type: "radio", name: "engKind", value: v, ...(st.engine === v ? { checked: "" } : {}) }), el("span", {}, el("b", { text: label }), el("small", { text: sub })));
-    const modelSel = el("select", { id: "engModel" }); MQL.BROWSER_MODELS.forEach(m => modelSel.append(el("option", { value: m.id, text: `${m.label} · ${m.gb} GB · quality: ${m.quality}` }))); modelSel.value = st.model;
-    const urlIn = el("input", { id: "engUrl", type: "url", value: st.ollamaUrl });
-    const olSel = el("select", { id: "engOllama" }, el("option", { value: st.ollamaModel || "", text: st.ollamaModel || "Check connection to list your models" }));
-    const status = el("p", { class: "note", "aria-live": "polite" });
-    const check = el("button", { class: "stop", type: "button", text: "Check connection" });
-    check.addEventListener("click", async () => {
-      status.textContent = "Connecting to Ollama…";
-      try { const ms = await MQL.ollamaModels(urlIn.value); olSel.replaceChildren(...ms.map(m => el("option", { value: m.name, text: m.name + (m.gb ? " · " + m.gb + " GB" : "") }))); if (st.ollamaModel) olSel.value = st.ollamaModel; status.textContent = ms.length ? "Connected. Pick a model." : "Connected, but no models are installed yet. Run: ollama pull qwen3:8b"; }
-      catch { status.textContent = "Couldn't reach Ollama. Make sure it's running and allows this site (see the steps above)."; }
-    });
-    const origin = location.origin.startsWith("http") ? location.origin : "https://shibin-t.github.io";
-    const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "engTitle" }, el("section", { class: "guide" },
-      el("div", { class: "about-head" }, el("h2", { id: "engTitle", class: "guide-title", text: "AI engine" }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: close })),
-      el("p", { class: "guide-lede", text: "MedQuery's answers come from an AI that runs on your own device: free, and your questions stay private. Every answer is checked against free official sources first." }),
-      radio("browser", "In this browser", "No install. Downloads a model once and runs it on your graphics chip."),
-      el("div", { class: "eng-sub" }, el("label", { for: "engModel", text: "Model" }), modelSel),
-      radio("ollama", "Ollama on this computer", "Bigger, more accurate models. Needs the free Ollama app."),
-      el("div", { class: "eng-sub" },
-        el("ol", { class: "eng-steps" },
-          el("li", {}, "Install Ollama from ollama.com, then run ", el("code", { text: "ollama pull qwen3:8b" }), "."),
-          el("li", {}, "Allow MedQuery to use it: set ", el("code", { text: "OLLAMA_ORIGINS=" + origin }), " and restart Ollama (on Windows: System → Environment variables; on Mac: ", el("code", { text: "launchctl setenv OLLAMA_ORIGINS " + origin }), ").")),
-        el("label", { for: "engUrl", text: "Ollama address" }), urlIn, el("div", { class: "row-flex" }, check, olSel), status),
-      el("div", { class: "guide-actions" }, el("span", { class: "note", text: "Saved on this device only." }),
-        el("button", { class: "guide-ok", type: "button", text: "Save", onclick: () => {
-          const ns = MQL.loadSettings();
-          ns.engine = box.querySelector("input[name=engKind]:checked")?.value || "browser"; ns.model = modelSel.value; ns.ollamaUrl = urlIn.value.trim() || "http://localhost:11434"; ns.ollamaModel = olSel.value;
-          if (ns.engine === "ollama" && !ns.ollamaModel) { status.textContent = "Check the connection and pick a model first."; return; }
-          MQL.saveSettings(ns); updateEngineChip(); close(); toast("AI engine saved: " + (ns.engine === "ollama" ? "Ollama · " + ns.ollamaModel : modelSel.selectedOptions[0].text.split(" · ")[0]));
-        } }))));
-    document.body.append(box); box.querySelector("input[name=engKind]:checked")?.focus();
+  function runPending() {
+    const p = AI.pending; AI.pending = null; if (!p) return;
+    if (p.type === "search") { input.value = p.q; run(p.q, p.opts); }
+    else if (p.type === "report") analyzeReport(p.file);
   }
+
+  // Status chip (top right): always shows whether the AI is ready
+  const CHIP = { checking: ["checking", "AI: checking…"], not_setup: ["off", "AI not set up · Set up"], unsupported: ["bad", "AI can't run here · Options"], setting_up: ["busy", "Setting up AI"], ready: ["on", "AI ready"], error: ["bad", "AI setup failed · Retry"] };
   function updateEngineChip() {
     if (IN_CLAUDE || !MQL) return;
     let chip = document.getElementById("engChip");
-    if (!chip) { chip = el("button", { id: "engChip", class: "eng-chip no-tr", type: "button", onclick: openEngineSettings }); document.body.append(chip); }
+    if (!chip) { chip = el("button", { id: "engChip", class: "eng-chip no-tr", type: "button", onclick: () => openSetup() }); document.body.append(chip); }
+    const [tone, label] = CHIP[AI.state] || CHIP.checking;
     const st = MQL.loadSettings();
-    chip.replaceChildren(el("span", { class: "eng-dot", "aria-hidden": "true" }), el("span", { text: "On-device AI: " + (st.engine === "ollama" ? "Ollama · " + (st.ollamaModel || "not set") : (MQL.BROWSER_MODELS.find(m => m.id === st.model)?.label.split(" (")[0] || "choose a model")) }));
-    chip.setAttribute("aria-label", "AI engine settings");
+    const name = st.engine === "ollama" ? "Ollama · " + st.ollamaModel : pickModel(st.model).short;
+    const text = AI.state === "setting_up" ? label + " " + AI.pct + "%" : AI.state === "ready" ? label + " · " + name : label;
+    chip.dataset.tone = tone;
+    chip.replaceChildren(el("span", { class: "eng-dot", "aria-hidden": "true" }), el("span", { text }));
+    chip.setAttribute("aria-label", text + ". Open AI setup and settings.");
   }
-  claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; } return inClaude ? null : loadLocalModule(); }).then(async () => { if (IN_CLAUDE || !MQL) return; const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); } updateEngineChip(); }).catch(() => {});
+
+  // Banner under the search bar while the AI isn't ready
+  function updateAIBanner() {
+    if (IN_CLAUDE || !MQL) return;
+    let b = document.getElementById("aiBanner");
+    if (!b) { b = el("div", { id: "aiBanner", class: "ai-banner no-tr", role: "region", "aria-label": "AI setup" }); $("#searchForm").closest(".searchbox").after(b); }
+    const m = pickModel(MQL.loadSettings().model);
+    b.hidden = AI.state === "ready" || AI.state === "checking";
+    if (b.hidden) return;
+    const btn = (text, primary) => el("button", { class: primary ? "guide-ok" : "stop", type: "button", text, onclick: () => openSetup() });
+    if (AI.state === "setting_up") b.replaceChildren(el("div", { class: "ai-banner-text" }, el("b", { text: "Setting up the AI… " + AI.pct + "%" }), el("span", { text: [AI.line, AI.eta].filter(Boolean).join(" · ") + ". Keep this tab open." })), el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })), btn("Details"));
+    else if (AI.state === "unsupported") b.replaceChildren(el("div", { class: "ai-banner-text" }, el("b", { text: "This browser can't run MedQuery's AI" }), el("span", { text: "See other ways to use MedQuery, such as Chrome or Edge on a computer." })), btn("See options", true));
+    else b.replaceChildren(el("div", { class: "ai-banner-text" },
+      el("b", { text: AI.evicted ? "Your browser removed the AI to free space. Set it up again to search." : AI.state === "error" ? "AI setup didn't finish." : "Set up the free AI before your first search" }),
+      el("span", { text: `One-time setup: about ${gb(m.gb)} download. It runs on this device, so it's free and private.` })), btn(AI.state === "error" ? "Try again" : "Set up AI", true));
+  }
+
+  // ----- The setup screen -----
+  let setupBox = null, chosenModel = "";
+  function openSetup() {
+    if (IN_CLAUDE) return;
+    if (setupBox?.isConnected) { setupBox.querySelector("button")?.focus(); return; }
+    setupBox = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "setupTitle" });
+    setupBox.addEventListener("keydown", e => { if (e.key === "Escape") closeSetup(); });
+    document.body.append(setupBox);
+    AI.view = "";
+    drawSetup();
+    if (!AI.device) MQL.deviceCheck().then(d => { AI.device = d; if (!d.gpu.ok && AI.state === "not_setup" && MQL.loadSettings().engine === "browser") setAI("unsupported"); else drawSetup(); });
+  }
+  function closeSetup() { setupBox?.remove(); setupBox = null; if (AI.state !== "ready" && AI.state !== "setting_up") AI.pending = null; }
+  const row = (ok, title, text) => el("li", { class: "chk", "data-ok": ok === true ? "yes" : ok === false ? "no" : "warn" }, el("span", { class: "chk-ic", "aria-hidden": "true", text: ok === true ? "✓" : ok === false ? "✕" : "!" }), el("div", {}, el("b", { text: title }), text ? el("small", { text }) : null));
+  function drawSetup() {
+    if (!setupBox) return;
+    const st = MQL.loadSettings(), d = AI.device;
+    if (!chosenModel || !MQL.BROWSER_MODELS.some(m => m.id === chosenModel)) chosenModel = st.model || MQL.BROWSER_MODELS[1].id;
+    const m = pickModel(chosenModel);
+    const head = el("div", { class: "about-head" }, el("h2", { id: "setupTitle", class: "guide-title" }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: closeSetup }));
+    const H = t => head.querySelector("h2").textContent = t;
+    const sec = el("section", { class: "guide setup" }, head);
+    setupBox.replaceChildren(sec);
+    const pendingNote = AI.pending ? el("p", { class: "setup-pending", text: AI.pending.type === "search" ? `Your search for “${AI.pending.q}” will start as soon as the AI is ready.` : "Your report will be read as soon as the AI is ready." }) : null;
+
+    if (AI.state === "setting_up") { H("Setting up the AI"); sec.append(pendingNote || "", el("div", { id: "setupProg" })); drawProgress(); return; }
+    if (AI.state === "ready" && AI.view !== "change") { H("MedQuery's AI is ready"); drawManage(sec, st); return; }
+    if (AI.view === "ollama") { H("Use the Ollama app (computers)"); drawOllama(sec, st); return; }
+
+    H("Set up MedQuery's free AI");
+    sec.append(el("p", { class: "guide-lede", text: "MedQuery answers using an AI that runs on this device, so it's free and your questions and reports are answered here, not on a company's server. You set it up once; after that it's ready whenever you open MedQuery in this browser." }), pendingNote || "");
+    if (AI.evicted) sec.append(el("p", { class: "setup-warn", text: "Your browser removed the AI earlier to free up space, so it needs setting up again." }));
+    if (AI.state === "error") sec.append(el("p", { class: "setup-warn", text: "The last setup didn't finish: " + AI.error }));
+
+    // Step 1: device check
+    const checks = el("ul", { class: "chk-list" });
+    if (!d) checks.append(row(null, "Checking this device…"));
+    else {
+      checks.append(d.gpu.ok ? row(true, d.browser + " can run the AI", d.gpu.f16 ? "" : "Your graphics chip uses a slightly larger, slower version.") : row(false, d.browser + " can't run the AI", d.gpu.reason));
+      if (d.memGB) checks.append(d.memGB >= m.ramGb ? row(true, "Memory: about " + d.memGB + " GB or more", "") : row(null, "Memory: about " + d.memGB + " GB", "Tight for this size. If answers fail, choose a smaller size."));
+      if (d.freeGB != null) checks.append(d.freeGB >= m.gb * 1.2 ? row(true, "Storage: enough free space", "About " + gb(d.freeGB) + " available to this browser.") : row(false, "Storage: may not be enough free space", `Needs about ${gb(m.gb)}; this browser reports about ${gb(d.freeGB)} available. Free up space, choose a smaller size, or avoid private/incognito windows, which have very little space.`));
+      if (d.saveData || d.cellular) checks.append(row(null, "You may be on mobile data", `The download is ${gb(m.gb)}. Use Wi-Fi if you can.`));
+      if (d.battery && !d.battery.charging && d.battery.level < 50) checks.append(row(null, "Battery at " + d.battery.level + "%", "Plug in your charger. Setup and answers use a lot of power."));
+    }
+    sec.append(el("h3", { class: "setup-h", text: "1. Your device" }), checks);
+    if (d && !d.gpu.ok) { drawAlternatives(sec); return; }
+
+    // Step 2: choose a size
+    const rec = d ? (d.mobile || (d.memGB && d.memGB < 8) ? MQL.BROWSER_MODELS[1].id : MQL.BROWSER_MODELS[0].id) : "";
+    const opts = el("div", { class: "size-opts", role: "radiogroup", "aria-label": "AI size" });
+    for (const x of MQL.BROWSER_MODELS) {
+      const card = el("label", { class: "size-opt" }, el("input", { type: "radio", name: "aiSize", value: x.id, ...(x.id === chosenModel ? { checked: "" } : {}) }),
+        el("span", {}, el("b", {}, x.short, x.id === rec ? el("em", { text: "Recommended for this device" }) : null), el("small", { text: `${gb(x.gb)} download · uses about ${gb(x.ramGb)} memory · accuracy: ${x.quality.toLowerCase()}` })));
+      card.querySelector("input").addEventListener("change", () => { chosenModel = x.id; drawSetup(); });
+      opts.append(card);
+    }
+    sec.append(el("h3", { class: "setup-h", text: "2. Choose a size" }), opts);
+
+    // Step 3: what it uses
+    sec.append(el("h3", { class: "setup-h", text: "3. What it will use" }), el("table", { class: "use-table" }, el("tbody", {},
+      ...[["Download", `${gb(m.gb)}, once. Wi-Fi recommended.`],
+          ["Storage", `${gb(m.gb)} kept in this browser so it starts quickly next time. You can remove it any time from this screen.`],
+          ["Memory", `About ${gb(m.ramGb)} while you're using it. Freed automatically after 10 minutes without a search.`],
+          ["Graphics chip and battery", "Works hard for about 10–60 seconds while writing each answer, so the device may get warm and the battery drains faster then. Nothing runs in the background."],
+          ["Internet per search", "A few small look-ups (well under 1 MB) in free medical databases such as MedlinePlus, Europe PMC and ClinicalTrials.gov. Your search words are sent to them; your reports are not."],
+          ["Time", m.gb > 3 ? "About 5–20 minutes on home broadband, longer on slow connections." : "About 3–10 minutes on home broadband, longer on slow connections."]
+         ].map(([k, v]) => el("tr", {}, el("th", { scope: "row", text: k }), el("td", { text: v }))))));
+    const lowSpace = d && d.freeGB != null && d.freeGB < m.gb * 1.2;
+    sec.append(el("div", { class: "guide-actions" },
+      el("button", { class: "linkish", type: "button", text: "Use the Ollama app instead (computers)", onclick: () => { AI.view = "ollama"; drawSetup(); } }),
+      el("button", { class: "guide-ok", type: "button", text: lowSpace ? `Try anyway (${gb(m.gb)})` : `Set up AI (${gb(m.gb)})`, onclick: () => startSetup("browser") })));
+    if (AI.state === "ready") sec.append(el("button", { class: "linkish", type: "button", text: "Keep the current AI", onclick: () => { AI.view = ""; drawSetup(); } }));
+  }
+  function drawProgress() {
+    const host = setupBox?.querySelector("#setupProg"); if (!host) return;
+    host.replaceChildren(
+      el("div", { class: "eng-prog" }, el("div", { class: "eng-prog-top" }, el("span", { text: AI.line || "Preparing…" }), el("b", { text: AI.pct + "%" })), el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })), AI.eta ? el("small", { class: "note", text: AI.eta }) : null),
+      el("ul", { class: "setup-tips" }, el("li", { text: "Keep this tab open. You can close this window and keep reading; progress shows at the top right." }), el("li", { text: "If the connection drops, the parts already downloaded are kept, so setup continues from where it stopped." })),
+      el("div", { class: "guide-actions" },
+        el("button", { class: "stop", type: "button", text: "Cancel setup", onclick: () => { if (confirm("Stop the setup? Parts already downloaded are kept, so it can continue later. The page will reload.")) location.reload(); } }),
+        el("button", { class: "guide-ok", type: "button", text: "Continue in background", onclick: () => { setupBox?.remove(); setupBox = null; } })));
+  }
+  async function startSetup(kind) {
+    const st = MQL.loadSettings();
+    st.engine = kind; if (kind === "browser") st.model = chosenModel; MQL.saveSettings(st);
+    setAI("setting_up", { pct: 0, line: kind === "ollama" ? "Connecting to Ollama" : "Starting the download", eta: "", error: "" });
+    try {
+      await MQL.setup({ onProgress: engineProgress });
+      sampleChecked = false; sample = null;
+      setAI("ready", { evicted: false, view: "" });
+      if (AI.pending) { const p = AI.pending; toast("The AI is ready. " + (p.type === "search" ? "Searching for “" + p.q + "”…" : "Reading your report…")); setTimeout(() => { closeSetup(); AI.pending = p; runPending(); }, 900); }
+      else toast("The AI is ready. You can search now.");
+    } catch (e) {
+      const msg = e?.code === "no_webgpu" ? e.message : e?.code === "ollama_model_missing" ? "That model isn't installed in Ollama yet." : /quota|space|storage/i.test(String(e?.message)) ? "There isn't enough free storage. Free up space or choose a smaller size." : /fetch|network|Failed to/i.test(String(e?.message)) ? "The download was interrupted. Check your internet; setup will continue where it stopped." : /memory|device lost|OOM/i.test(String(e?.message)) ? "The device ran out of graphics memory. Choose a smaller size." : "Something went wrong (" + String(e?.message || e).slice(0, 120) + ").";
+      setAI("error", { error: msg, view: kind === "ollama" ? "ollama" : "" });
+    }
+  }
+  function drawManage(sec, st) {
+    const m = pickModel(st.model), loaded = MQL.engineLoaded();
+    const ol = st.engine === "ollama";
+    sec.append(el("ul", { class: "chk-list" },
+      row(true, ol ? "Using Ollama · " + st.ollamaModel : "Using " + m.short + " (" + m.label.split(" (")[0] + ")", ol ? "Runs in the Ollama app on this computer." : "Set up " + new Date(st.setup.browser?.at || Date.now()).toLocaleDateString()),
+      ol ? null : row(true, "Storage: " + gb(m.gb) + " in this browser", "Stays until you remove it."),
+      ol ? null : row(loaded ? null : true, loaded ? "Memory: in use (about " + gb(m.ramGb) + ")" : "Memory: not in use", loaded ? "Freed automatically after 10 minutes without a search." : "The AI starts in a few seconds when you search.")),
+      el("div", { class: "setup-actions" },
+        !ol && loaded ? el("button", { class: "stop", type: "button", text: "Free memory now", onclick: async () => { await MQL.freeMemory(); drawSetup(); } }) : null,
+        el("button", { class: "stop", type: "button", text: "Change size or use Ollama", onclick: () => { AI.view = "change"; chosenModel = st.model; drawSetup(); } }),
+        !ol ? el("button", { class: "stop danger", type: "button", text: "Remove AI from this device", onclick: async () => {
+          if (!confirm("Remove the AI (" + gb(m.gb) + ") from this browser? You'll need to set it up again before searching.")) return;
+          await MQL.removeAI(st.model); sampleChecked = false; setAI("not_setup", { view: "" }); toast("The AI was removed from this device.");
+        } }) : null),
+      el("div", { class: "guide-actions" }, el("span", { class: "note", text: "Settings are saved on this device only." }), el("button", { class: "guide-ok", type: "button", text: "Done", onclick: closeSetup })));
+  }
+  function copyCode(text) { return el("span", { class: "code-row" }, el("code", { text }), copyBtn(text, "Copy")); }
+  function drawOllama(sec, st) {
+    const origin = location.origin.startsWith("http") ? location.origin : "https://shibin-t.github.io";
+    const urlIn = el("input", { id: "engUrl", type: "url", value: st.ollamaUrl, "aria-label": "Ollama address" });
+    const olSel = el("select", { id: "engOllama", "aria-label": "Ollama model" }, el("option", { value: st.ollamaModel || "", text: st.ollamaModel || "Connect first to list your models" }));
+    const status = el("p", { class: "note", "aria-live": "polite", text: AI.state === "error" ? AI.error : "" });
+    const go = el("button", { class: "guide-ok", type: "button", text: "Set up with Ollama", disabled: st.ollamaModel ? null : "" });
+    const connect = el("button", { class: "stop", type: "button", text: "Connect" });
+    connect.addEventListener("click", async () => {
+      status.textContent = "Connecting to Ollama…";
+      try { const ms = await MQL.ollamaModels(urlIn.value); olSel.replaceChildren(...ms.map(x => el("option", { value: x.name, text: x.name + (x.gb ? " · " + x.gb + " GB" : "") }))); if (st.ollamaModel) olSel.value = st.ollamaModel; status.textContent = ms.length ? "Connected. Choose a model, then set up." : "Connected, but no models are installed yet. Do step 2, then connect again."; go.disabled = !ms.length; }
+      catch { status.textContent = "Couldn't reach Ollama. Make sure the Ollama app is open and step 3 is done, then try again."; }
+    });
+    go.addEventListener("click", () => { const ns = MQL.loadSettings(); ns.ollamaUrl = urlIn.value.trim() || "http://localhost:11434"; ns.ollamaModel = olSel.value; MQL.saveSettings(ns); startSetup("ollama"); });
+    sec.append(
+      el("p", { class: "guide-lede", text: "Ollama is a free app that runs bigger, more accurate AI models on a Windows, Mac or Linux computer. It uses about 5 GB of storage and 6–8 GB of memory while answering." }),
+      el("ol", { class: "eng-steps big" },
+        el("li", {}, "Download and install Ollama from ", el("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener", text: "ollama.com/download" }), ", then open it."),
+        el("li", {}, "Open Terminal (Mac or Linux) or Command Prompt (Windows), paste this and press Enter. It downloads the model (about 5 GB):", copyCode("ollama pull qwen3:8b")),
+        el("li", {}, "Allow MedQuery to use Ollama. Paste the line for your computer, press Enter, then quit Ollama and open it again:",
+          el("div", { class: "os-codes" }, el("small", { text: "Windows" }), copyCode(`setx OLLAMA_ORIGINS "${origin}"`), el("small", { text: "Mac" }), copyCode(`launchctl setenv OLLAMA_ORIGINS "${origin}"`), el("small", { text: "Linux" }), copyCode(`OLLAMA_ORIGINS="${origin}" ollama serve`))),
+        el("li", {}, "Click Connect, choose the model, then Set up.", el("div", { class: "row-flex" }, urlIn, connect), olSel, status)),
+      el("div", { class: "guide-actions" }, el("button", { class: "linkish", type: "button", text: "← Back", onclick: () => { AI.view = AI.state === "ready" ? "change" : ""; if (AI.state === "error") AI.state = "not_setup"; drawSetup(); } }), go));
+  }
+  function drawAlternatives(sec) {
+    const here = location.href.split("#")[0];
+    sec.append(el("h3", { class: "setup-h", text: "Other ways to use MedQuery" }), el("ol", { class: "eng-steps big" },
+      el("li", {}, el("b", { text: "Use Chrome or Microsoft Edge" }), " (recent version) on a computer, or Chrome on a recent Android phone. Copy this page's link and open it there: ", copyCode(here)),
+      el("li", {}, el("b", { text: "Use the free Ollama app" }), " on a Windows, Mac or Linux computer. ", el("button", { class: "linkish", type: "button", text: "Show me how →", onclick: () => { AI.view = "ollama"; drawSetup(); } })),
+      el("li", {}, el("b", { text: "Use MedQuery inside Claude" }), ": answers come from Claude instead, with no setup (needs a Claude account). ", el("a", { href: "https://claude.ai/artifact/6oTi5orvxdrwWaz4LJsSX4", target: "_blank", rel: "noopener", text: "Open MedQuery in Claude ↗" }))),
+      el("div", { class: "guide-actions" }, el("span"), el("button", { class: "guide-ok", type: "button", text: "Close", onclick: closeSetup })));
+  }
+  // Older entry point name, kept so existing buttons still work
+  const openEngineSettings = openSetup;
+
+  claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; } return inClaude ? null : loadLocalModule(); }).then(async () => {
+    if (IN_CLAUDE || !MQL) return;
+    const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); }
+    MQL.onEngineState(() => { if (setupBox?.isConnected && AI.state === "ready") drawSetup(); });
+    setAI("checking");
+    const v = await MQL.verifySetup();
+    if (v.ok) { setAI("ready"); return; }
+    const gpu = st.engine === "browser" ? await MQL.webgpuStatus() : { ok: true };
+    setAI(gpu.ok ? "not_setup" : "unsupported", { evicted: !!v.evicted });
+  }).catch(e => console.warn("AI status check failed:", e));
 
   async function run(q, opts2 = {}) {
     q = str(q); if (!q) return;
+    if (!(await aiGate({ type: "search", q, opts: opts2 }))) return; // outside Claude: wait until the on-device AI is set up
     lastRun = { q, opts: { detail: opts2.detail, context: opts2.context } };
     clearTimeout(aiTimer); aiCtl?.abort(); openPanel(false); input.blur(); hidePop(); closeZoom();
     document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
@@ -2530,6 +2785,8 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
           d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
           d.title = str(d.title) || term;
           d.evidence = [...g.sources, ...(g.datasets || [])].map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));
+          d.trials = g.trials || [];
+          if (g.drug && d.kind === "drug") { d.drug ||= {}; d.drug.status = g.drug.status; d.drug.statusNote = g.drug.status === "approved" ? "" : g.drug.status === "experimental" ? `Highest stage reached: clinical trial phase ${g.drug.phase}. Not approved (source: ChEMBL).` : g.drug.status === "withdrawn" ? "Withdrawn from the market (source: ChEMBL)." : "A research compound, not an approved medicine (source: ChEMBL)."; }
           if (!g.sources.length) { d.confidence = "low"; d.uncertainty = str(d.uncertainty) || "No official source could be reached, so this answer comes only from a small on-device AI and may be wrong. Check it with a doctor or a trusted source."; d.needsResearch = true; }
           d.engineNote = "Answered on your device · " + s.describe();
         }

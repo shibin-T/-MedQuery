@@ -23,18 +23,19 @@ const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tess
 const SETTINGS_KEY = "medquery.localAI";
 
 // Browser models we offer. Sizes are the one-time download / memory need.
+// gb = one-time download and storage; ramGb = approximate memory used while the AI is running (approximate, varies by device)
 export const BROWSER_MODELS = [
-  { id: "Qwen3.5-4B-q4f16_1-MLC", f32: "Qwen3.5-4B-q4f32_1-MLC", label: "Qwen 3.5 · 4B (recommended for laptops)", gb: 3.9, quality: "Good" },
-  { id: "Qwen3.5-2B-q4f16_1-MLC", f32: "Qwen3.5-2B-q4f32_1-MLC", label: "Qwen 3.5 · 2B (phones and older laptops)", gb: 2.3, quality: "Fair" },
-  { id: "Qwen3.5-9B-q4f16_1-MLC", f32: null, label: "Qwen 3.5 · 9B (powerful computers only)", gb: 6.5, quality: "Best" },
-  { id: "Qwen3.5-0.8B-q4f16_1-MLC", f32: "Qwen3.5-0.8B-q4f32_1-MLC", label: "Qwen 3.5 · 0.8B (very low memory; least reliable)", gb: 1.6, quality: "Basic" }
+  { id: "Qwen3.5-4B-q4f16_1-MLC", f32: "Qwen3.5-4B-q4f32_1-MLC", label: "Qwen 3.5 · 4B (recommended for laptops)", short: "Standard", gb: 3.9, ramGb: 4.5, quality: "Good" },
+  { id: "Qwen3.5-2B-q4f16_1-MLC", f32: "Qwen3.5-2B-q4f32_1-MLC", label: "Qwen 3.5 · 2B (phones and older laptops)", short: "Light", gb: 2.3, ramGb: 2.8, quality: "Fair" },
+  { id: "Qwen3.5-9B-q4f16_1-MLC", f32: null, label: "Qwen 3.5 · 9B (powerful computers only)", short: "Most accurate", gb: 6.5, ramGb: 7.5, quality: "Best" },
+  { id: "Qwen3.5-0.8B-q4f16_1-MLC", f32: "Qwen3.5-0.8B-q4f32_1-MLC", label: "Qwen 3.5 · 0.8B (very low memory; least reliable)", short: "Smallest", gb: 1.6, ramGb: 1.9, quality: "Basic" }
 ];
 
 // ---------- settings (kept on this device only) ----------
 export function loadSettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); } catch {}
-  return { engine: s.engine || "browser", model: s.model || "", ollamaUrl: s.ollamaUrl || "http://localhost:11434", ollamaModel: s.ollamaModel || "", downloaded: s.downloaded || {} };
+  return { engine: s.engine || "browser", model: s.model || "", ollamaUrl: s.ollamaUrl || "http://localhost:11434", ollamaModel: s.ollamaModel || "", downloaded: s.downloaded || {}, setup: s.setup || {} };
 }
 export function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {} }
 
@@ -44,6 +45,40 @@ export async function suggestModel() {
   const mem = navigator.deviceMemory || 4; // GB, Chrome only (capped at 8)
   if (mobile || mem < 8) return BROWSER_MODELS[1].id;
   return BROWSER_MODELS[0].id;
+}
+
+// ---------- set-up state ----------
+// "Set up" means: the chosen AI has been downloaded (or Ollama connected) AND answered a short test.
+export function isSetUp(s = loadSettings()) {
+  return s.engine === "ollama" ? !!(s.ollamaModel && s.setup.ollama?.model === s.ollamaModel) : !!(s.model && s.setup.browser?.model === s.model);
+}
+// Is the model's data still stored in this browser? (Browsers can delete it to free space.) null = can't tell.
+export async function modelOnDisk(modelId) {
+  try {
+    if (!("caches" in window)) return null;
+    const m = BROWSER_MODELS.find(x => x.id === modelId);
+    const names = (await caches.keys()).filter(n => /webllm/i.test(n));
+    if (!names.length) return null; // no WebLLM storage found under the names we know: can't tell, so don't assume it's gone
+    for (const n of names) { const ks = await (await caches.open(n)).keys(); if (ks.some(r => r.url.includes(modelId) || (m?.f32 && r.url.includes(m.f32)))) return true; }
+    return false;
+  } catch { return null; }
+}
+// Re-check on page load; if the browser cleared the download, the AI needs setting up again
+export async function verifySetup() {
+  const s = loadSettings();
+  if (!isSetUp(s)) return { ok: false };
+  if (s.engine === "browser" && (await modelOnDisk(s.model)) === false) { delete s.setup.browser; delete s.downloaded[s.model]; saveSettings(s); return { ok: false, evicted: true }; }
+  return { ok: true };
+}
+const browserName = () => { const u = navigator.userAgent; return /Edg\//.test(u) ? "Edge" : /OPR\//.test(u) ? "Opera" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "this browser"; };
+// What this device offers, in plain terms, for the setup screen
+export async function deviceCheck() {
+  const mobile = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+  const gpu = await webgpuStatus();
+  let freeGB = null; try { const e = await navigator.storage?.estimate?.(); if (e?.quota) freeGB = Math.max(0, (e.quota - (e.usage || 0)) / 1e9); } catch {}
+  let battery = null; try { if (navigator.getBattery) { const b = await navigator.getBattery(); battery = { charging: b.charging, level: Math.round(b.level * 100) }; } } catch {}
+  const c = navigator.connection || {};
+  return { mobile, gpu, memGB: navigator.deviceMemory || null, freeGB, battery, saveData: !!c.saveData, cellular: c.type === "cellular", net: c.effectiveType || "", browser: browserName(), cores: navigator.hardwareConcurrency || null };
 }
 
 // Can this browser run models on the graphics chip?
@@ -70,7 +105,13 @@ export function parseJSONLoose(text) {
 }
 
 // ---------- engines ----------
-let webllm = null, engine = null, engineModel = null, loading = null;
+let webllm = null, engine = null, engineModel = null, loading = null, idleTimer = null;
+const IDLE_MS = 10 * 60 * 1000; // free the graphics memory after 10 minutes without use
+let stateHook = null;
+export function onEngineState(fn) { stateHook = fn; }
+export function engineLoaded() { return !!engine; }
+export async function freeMemory() { clearTimeout(idleTimer); if (engine) { try { await engine.unload(); } catch {} engine = null; engineModel = null; stateHook?.("sleeping"); } }
+function touchIdle() { clearTimeout(idleTimer); idleTimer = setTimeout(freeMemory, IDLE_MS); }
 
 async function loadBrowserEngine(modelId, onProgress) {
   if (engine && engineModel === modelId) return engine;
@@ -85,7 +126,7 @@ async function loadBrowserEngine(modelId, onProgress) {
     engine = await webllm.CreateMLCEngine(id, {
       initProgressCallback: p => onProgress?.({ progress: p.progress ?? 0, text: p.text || "" })
     });
-    engineModel = modelId;
+    engineModel = modelId; stateHook?.("loaded");
     return engine;
   })().finally(() => { loading = null; });
   return loading;
@@ -93,6 +134,7 @@ async function loadBrowserEngine(modelId, onProgress) {
 
 async function chatBrowser(messages, { json, onText, signal, maxTokens, onProgress, settings }) {
   const eng = await loadBrowserEngine(settings.model, onProgress);
+  touchIdle();
   const req = { messages, temperature: 0.2, max_tokens: maxTokens || 1400, stream: true, extra_body: { enable_thinking: false } };
   if (json) req.response_format = { type: "json_object" };
   let out = "";
@@ -104,6 +146,7 @@ async function chatBrowser(messages, { json, onText, signal, maxTokens, onProgre
     const d = chunk.choices?.[0]?.delta?.content || "";
     if (d) { out += d; onText?.({ text: out, delta: d }); }
   }
+  touchIdle();
   return out;
 }
 
@@ -137,6 +180,43 @@ export async function ollamaModels(url) {
   return (j.models || []).map(m => ({ name: m.name, gb: m.size ? +(m.size / 1e9).toFixed(1) : null }));
 }
 
+// ---------- one-time setup ----------
+// Downloads (or connects) the chosen AI, then checks it with a tiny test answer.
+export async function setup({ onProgress } = {}) {
+  const s = loadSettings();
+  if (!s.model) s.model = await suggestModel();
+  const test = [{ role: "system", content: "Reply with one word." }, { role: "user", content: "Say OK." }];
+  if (s.engine === "ollama") {
+    const models = await ollamaModels(s.ollamaUrl);
+    if (!models.some(m => m.name === s.ollamaModel)) throw Object.assign(new Error("That model isn't installed in Ollama yet."), { code: "ollama_model_missing" });
+    onProgress?.({ progress: .5, text: "Testing Ollama" });
+    await chatOllama(test, { settings: s });
+    s.setup.ollama = { model: s.ollamaModel, at: Date.now() };
+  } else {
+    try { await navigator.storage?.persist?.(); } catch {} // ask the browser not to delete the download when space is low
+    const eng = await loadBrowserEngine(s.model, onProgress);
+    onProgress?.({ progress: 1, text: "Testing the AI" });
+    const r = await eng.chat.completions.create({ messages: test, max_tokens: 8, temperature: 0, extra_body: { enable_thinking: false } });
+    if (!r?.choices?.length) throw Object.assign(new Error("The AI loaded but didn't answer the test."), { code: "test_failed" });
+    s.downloaded[s.model] = true; s.setup.browser = { model: s.model, at: Date.now() };
+    touchIdle();
+  }
+  saveSettings(s);
+  return s;
+}
+// Delete the downloaded AI from this browser to free storage
+export async function removeAI(modelId) {
+  await freeMemory();
+  const m = BROWSER_MODELS.find(x => x.id === modelId);
+  try {
+    for (const n of (await caches.keys()).filter(n => /webllm/i.test(n))) {
+      const c = await caches.open(n);
+      for (const r of await c.keys()) if (r.url.includes(modelId) || (m?.f32 && r.url.includes(m.f32))) await c.delete(r);
+    }
+  } catch {}
+  const s = loadSettings(); delete s.downloaded[modelId]; if (s.setup.browser?.model === modelId) delete s.setup.browser; saveSettings(s);
+}
+
 // Turn the app's input (a string, or chat turns) into chat messages
 function toMessages(input, system) {
   const msgs = [{ role: "system", content: system }];
@@ -154,13 +234,8 @@ export async function getSampler(hooks = {}) {
     const messages = toMessages(input, SYSTEM + (json ? " Reply with ONE valid JSON value and nothing else." : ""));
     const args = { json, onText: opts.onText, signal: opts.signal, maxTokens: opts.maxTokens, settings,
       onProgress: p => hooks.onProgress?.(p) };
-    if (settings.engine === "browser" && !settings.downloaded[settings.model]) {
-      const ok = await hooks.confirmDownload?.(settings);
-      if (!ok) throw Object.assign(new Error("download declined"), { code: "not_granted" });
-    }
-    const text = settings.engine === "ollama" ? await chatOllama(messages, args) : await chatBrowser(messages, args);
-    if (settings.engine === "browser" && !settings.downloaded[settings.model]) { settings.downloaded[settings.model] = true; saveSettings(settings); }
-    return text;
+    if (!isSetUp(settings)) { hooks.needSetup?.(); throw Object.assign(new Error("The AI isn't set up yet"), { code: "ai_not_ready" }); }
+    return settings.engine === "ollama" ? await chatOllama(messages, args) : await chatBrowser(messages, args);
   };
   const fn = async (input, opts) => ({ text: (await call(input, opts, false)).replace(/<think>[\s\S]*?<\/think>/g, "").trim(), truncated: false });
   fn.json = async (input, opts) => parseJSONLoose(await call(input, opts, true));
@@ -272,29 +347,92 @@ async function findDatasets(term) {
   return (j?.results || []).map(r => ({ source: "HealthData.gov dataset", title: clip(r.resource?.name || "Dataset", 140), url: r.permalink || r.link || `https://healthdata.gov/d/${r.resource?.id}`, year: String(r.resource?.data_updated_at || r.resource?.updatedAt || "").slice(0, 4) })).filter(d => d.url);
 }
 
-// Gather sources for a query. Returns { sources:[{source,title,url,year,text}], datasets, context } (context fits a small model)
+// MeSH (Medical Subject Headings, US National Library of Medicine): the standard medical vocabulary,
+// with an expert-written definition ("scope note") for each term. Via NCBI E-utilities.
+const EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils", EU_TAG = "&tool=MedQuery&retmode=json";
+export async function meshDefine(term) {
+  const k = "mesh:" + term.toLowerCase(), hit = cacheGet(k); if (hit) return hit;
+  const ids = (await getJSON(`${EUTILS}/esearch.fcgi?db=mesh&retmax=1&term=${encodeURIComponent(term)}${EU_TAG}`, 6000))?.esearchresult?.idlist || [];
+  if (!ids.length) return null;
+  const doc = (await getJSON(`${EUTILS}/esummary.fcgi?db=mesh&id=${ids[0]}${EU_TAG}`, 6000))?.result?.[ids[0]];
+  if (!doc?.ds_scopenote) return null;
+  const r = { term: (doc.ds_meshterms || [])[0] || term, definition: clip(doc.ds_scopenote, 500), url: `https://www.ncbi.nlm.nih.gov/mesh/${ids[0]}` };
+  cacheSet(k, r); return r;
+}
+async function groundMesh(term) {
+  const r = await meshDefine(term); if (!r) return [];
+  return [{ source: "MeSH (US National Library of Medicine)", title: r.term, url: r.url, year: "", text: "Definition: " + r.definition }];
+}
+// Mondo Disease Ontology (merges Orphanet, OMIM, NCIt and others; strong on rare diseases), via EMBL-EBI's Ontology Lookup Service
+async function groundMondo(term) {
+  const j = await getJSON(`https://www.ebi.ac.uk/ols4/api/search?q=${encodeURIComponent(term)}&ontology=mondo&rows=1&fieldList=label,description,obo_id`, 7000);
+  const d = j?.response?.docs?.[0]; const desc = [].concat(d?.description || [])[0];
+  if (!d || !desc) return [];
+  return [{ source: "Mondo Disease Ontology (incl. Orphanet rare diseases)", title: d.label, url: `https://monarchinitiative.org/${d.obo_id}`, year: "", text: clip(desc, 600) }];
+}
+// Cochrane systematic reviews: among the most trusted summaries of treatment evidence (abstracts are free)
+async function groundCochrane(term) {
+  const q = encodeURIComponent(`(TITLE_ABS:"${term}") AND JOURNAL:"Cochrane Database Syst Rev"`);
+  const j = await getJSON(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${q}&format=json&resultType=core&pageSize=1&sort=P_PDATE_D%20desc`);
+  return (j?.resultList?.result || []).filter(r => r.abstractText).map(r => ({
+    source: "Cochrane systematic review", title: clip(r.title, 160), url: r.doi ? `https://doi.org/${r.doi}` : `https://europepmc.org/article/${r.source}/${r.id}`,
+    year: String(r.pubYear || ""), text: clip(r.abstractText, 800) }));
+}
+// ChEMBL (EMBL-EBI): how far a medicine has got in development. Phase 4 = approved; 1-3 = still in clinical trials.
+export async function drugStatus(term) {
+  const j = await getJSON(`https://www.ebi.ac.uk/chembl/api/data/molecule/search.json?q=${encodeURIComponent(term)}&limit=1`, 7000);
+  const m = j?.molecules?.[0]; if (!m) return null;
+  const phase = m.max_phase == null ? null : parseFloat(m.max_phase);
+  const status = m.withdrawn_flag ? "withdrawn" : phase >= 4 ? "approved" : phase > 0 ? "experimental" : "research";
+  return { name: m.pref_name || term, phase, status, firstApproval: m.first_approval || null, url: `https://www.ebi.ac.uk/chembl/explore/compound/${m.molecule_chembl_id}`, source: "ChEMBL (EMBL-EBI)" };
+}
+// ClinicalTrials.gov: active trials of treatments that are still EXPERIMENTAL. Shown as-is (tagged), not rewritten by the AI.
+const PHASE = { EARLY_PHASE1: "Early phase 1", PHASE1: "Phase 1", PHASE2: "Phase 2", PHASE3: "Phase 3", PHASE4: "Phase 4", NA: "" };
+const STATUS = { RECRUITING: "Recruiting", ACTIVE_NOT_RECRUITING: "Active, not recruiting", NOT_YET_RECRUITING: "Not yet recruiting", ENROLLING_BY_INVITATION: "By invitation" };
+export async function findTrials(term, kind) {
+  const by = kind === "drug" ? "query.intr" : "query.cond";
+  const base = `https://clinicaltrials.gov/api/v2/studies?${by}=${encodeURIComponent(term)}&filter.overallStatus=RECRUITING,ACTIVE_NOT_RECRUITING,NOT_YET_RECRUITING&filter.advanced=${encodeURIComponent("AREA[StudyType]INTERVENTIONAL AND (AREA[Phase]PHASE1 OR AREA[Phase]PHASE2 OR AREA[Phase]PHASE3 OR AREA[Phase]EARLY_PHASE1)")}&pageSize=4&sort=LastUpdatePostDate:desc`;
+  const j = await getJSON(base + "&fields=NCTId,BriefTitle,Phase,OverallStatus,InterventionName,InterventionType", 9000).catch(() => null) || await getJSON(base, 9000);
+  return (j?.studies || []).map(st => {
+    const ps = st.protocolSection || {};
+    const nct = ps.identificationModule?.nctId;
+    return nct && {
+      nct, title: clip(ps.identificationModule?.briefTitle, 180), url: `https://clinicaltrials.gov/study/${nct}`,
+      phase: (ps.designModule?.phases || []).map(x => PHASE[x] ?? x).filter(Boolean).join("/"),
+      status: STATUS[ps.statusModule?.overallStatus] || (ps.statusModule?.overallStatus || "").replace(/_/g, " ").toLowerCase(),
+      interventions: (ps.armsInterventionsModule?.interventions || []).filter(i => !/PLACEBO/i.test(i.type) && !/placebo/i.test(i.name)).map(i => i.name).slice(0, 3)
+    };
+  }).filter(Boolean);
+}
+
+// Gather sources for a query. Returns { sources:[{source,title,url,year,text}], datasets, trials, drug, context } (context fits a small model)
 export async function ground(term, kind, fullQuery = "") {
-  const tasks = [];
-  tasks.push(groundGenomes(term + " " + fullQuery));
+  const tasks = [groundGenomes(term + " " + fullQuery), groundMesh(term)];
   if (kind === "drug") tasks.push(groundDrug(term).then(r => r.items));
   else if (kind === "test") tasks.push(groundTest(term).then(r => r.items));
   else tasks.push(groundDisease(term).then(r => r.items));
+  if (kind !== "test") tasks.push(groundCochrane(term));
   tasks.push(groundResearch(term));
+  if (kind === "disease") tasks.push(groundMondo(term));
   if (kind !== "test") tasks.push(groundBiobank(term));
   const ds = findDatasets(term).catch(() => []);
+  const trials = kind === "test" ? Promise.resolve([]) : findTrials(term, kind).catch(() => []);
+  const drug = kind === "drug" ? drugStatus(term).catch(() => null) : Promise.resolve(null);
   const results = await Promise.allSettled(tasks);
-  const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 5);
-  let budget = 5200;
+  const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 6);
+  const dr = await drug;
+  if (dr) sources.push({ source: dr.source, title: dr.name, url: dr.url, year: "", text: `Development stage: ${dr.status === "approved" ? "approved (phase 4)" + (dr.firstApproval ? ", first approved " + dr.firstApproval : "") : dr.status === "withdrawn" ? "withdrawn from the market" : dr.status === "experimental" ? "EXPERIMENTAL: highest stage reached is clinical trial phase " + dr.phase + "; not approved" : "research compound, not approved"}.` });
+  const budget = 5400;
   const context = sources.map((s, i) => {
-    const t = s.text.slice(0, Math.max(300, Math.floor(budget / sources.length)));
+    const t = s.text.slice(0, Math.max(280, Math.floor(budget / sources.length)));
     return `[S${i + 1}] ${s.source} — ${s.title}${s.year ? " (" + s.year + ")" : ""}\n${t}`;
   }).join("\n\n");
-  return { sources, datasets: await ds, context };
+  return { sources, datasets: await ds, trials: await trials, drug: dr, context };
 }
 
 // Compact prompts for small models (≈4k-token window): one kind at a time, fewer fields
 const KIND_SCHEMA = {
-  disease: `"definition":"1-2 plain sentences","symptoms":{"common":["..."],"uncommon":["..."]},"causes":["..."],"tests":[{"name":"","why":""}],"homeRemedies":{"applicable":true or false (true only for simple self-limiting illnesses),"note":"","items":[{"name":"","how":"","allergens":["common allergens in it, or empty"]}]},"prevention":["..."],"treatments":[{"option":"","route":"how a medicine is given, e.g. Oral tablet; '' if not a medicine","note":""}]`,
+  disease: `"definition":"1-2 plain sentences","symptoms":{"common":["..."],"uncommon":["..."]},"causes":["..."],"tests":[{"name":"","why":""}],"homeRemedies":{"applicable":true or false (true only for simple self-limiting illnesses),"note":"","items":[{"name":"","how":"","allergens":["common allergens in it, or empty"]}]},"prevention":["..."],"treatments":[{"option":"","route":"how a medicine is given, e.g. Oral tablet; '' if not a medicine","experimental":false,"note":""}]`,
   test: `"purpose":"","specimen":"","preparation":"","components":[{"name":"","normal":"typical adult range","unit":"","depends":true or false}],"factors":["age","sex","pregnancy","fasting" (only those that change the ranges)],"highLow":[{"finding":"","meaning":""}]`,
   drug: `"drug":{"class":"","howItWorks":"","administration":{"routes":["e.g. Oral tablet"],"how":"how and when it is taken, no personal doses"},"uses":["..."],"commonSideEffects":["..."],"seriousSideEffects":["..."],"cautions":["..."],"interactions":["..."]}`,
   question: `"answer":"direct plain answer","points":["..."]`
@@ -305,7 +443,7 @@ export function answerPrompt({ q, kind, context, detail, langNote, followUp }) {
 ${context || "(No sources could be retrieved.)"}
 
 TASK: Answer the medical query "${q.slice(0, 300)}"${followUp ? ` as a follow-up to "${followUp}"` : ""}. It is a ${kind}.
-RULES: Use ONLY facts stated in the SOURCES. If the sources do not cover a field, leave it empty ("" or []) rather than guessing. Plain language for non-medical readers. Never give personal doses. Name any medicine with how it is given. If the sources are missing or thin, set "confidence":"low" and explain in "uncertainty". ${size}${langNote || ""}
+RULES: Use ONLY facts stated in the SOURCES. If the sources do not cover a field, leave it empty ("" or []) rather than guessing. Plain language for non-medical readers. Never give personal doses. Name any medicine with how it is given. Anything not approved for routine use (only in clinical trials, early research) is EXPERIMENTAL: set "experimental":true or start the item with "Experimental: ". If the sources are missing or thin, set "confidence":"low" and explain in "uncertainty". ${size}${langNote || ""}
 Reply with ONE JSON object:
 {"kind":"${kind}","title":"","aka":[],"summary":"1-2 sentences","urgent":"warning signs needing urgent care, or ''",${KIND_SCHEMA[kind] || KIND_SCHEMA.question},"details":[],"confidence":"high|moderate|low","uncertainty":"","needsResearch":false,"related":["3-5 related searches"]}`;
 }

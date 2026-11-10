@@ -21,15 +21,20 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Report scanner:** upload or paste a lab report (image or PDF). Personal details are skipped; each value gets a card showing how far it is from normal, what it means, and possible inferences.
 - **Care near you:** nearby hospitals sorted by distance, directions in your map app, and copy and call buttons for 24/7 numbers, plus a one-tap emergency button.
 - **Open health databases:** CDC WONDER (US statistics), WHO's Global Index Medicus (research from low- and middle-income countries), UK Biobank studies, the 1000 Genomes Project and HealthData.gov, alongside open-access journals and public guidelines.
+- **Experimental tag:** anything not approved for routine use (only in clinical trials or early research) is clearly tagged **Experimental**, with links to ClinicalTrials.gov and the WHO trials registry.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
 
 ## Free on-device AI (outside Claude)
 
 When MedQuery is opened outside Claude, it runs its AI on the visitor's own device, so it's free for everyone and questions stay private.
 
-- **In the browser** (no install): the first search asks to download a small open model once (Qwen 3.5, about 2–4 GB, chosen to suit the device). Needs a recent Chrome or Edge with WebGPU.
-- **With Ollama** (computers): install [Ollama](https://ollama.com), run `ollama pull qwen3:8b`, allow the site with `OLLAMA_ORIGINS=https://shibin-t.github.io`, then pick **Ollama** under *On-device AI* (top right).
-- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources (US National Library of Medicine's MedlinePlus and Clinical Tables, openFDA drug labels, RxNav, Europe PMC open-access research, published UK Biobank studies, and 1000 Genomes Project variant frequencies via Ensembl when a variant such as rs334 is mentioned) and tells the model to answer only from them. Matching HealthData.gov datasets are listed as links. Source links appear with every answer.
+- **Set up once, then search.** Searches and reports wait until the AI is set up. The **AI** button at the top right always shows the status (*not set up*, *setting up 42%*, *ready*), and a banner under the search bar offers **Set up AI** until it's done.
+- **The setup screen** checks the device (browser support, memory, free storage, mobile data, battery), recommends a size, and says exactly what it will use: download size, storage, memory while running, graphics chip and battery use, and what goes over the internet per search. It shows progress with time left; if the connection drops it continues where it stopped. Your search starts automatically when setup finishes.
+- **Sizes** (Qwen 3.5, run with WebLLM in Chrome or Edge with WebGPU): Smallest 1.6 GB, Light 2.3 GB, Standard 3.9 GB, Most accurate 6.5 GB. Memory is freed after 10 minutes without a search, and the AI can be removed from the device at any time.
+- **No WebGPU?** The setup screen offers step-by-step alternatives: Chrome/Edge on a computer, the free [Ollama](https://ollama.com) app (copy-paste commands for Windows, Mac and Linux), or MedQuery inside Claude.
+- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources and tells the model to answer only from them: MeSH definitions, MedlinePlus and Clinical Tables (NLM), openFDA labels, RxNav, Cochrane reviews and open-access research (Europe PMC), Mondo/Orphanet rare-disease definitions, published UK Biobank studies, 1000 Genomes variant frequencies (Ensembl) and ChEMBL approval stages. HealthData.gov datasets are listed as links.
+- **Experimental treatments** from ClinicalTrials.gov (trials recruiting now, phases 1–3) are shown as they are, tagged **Experimental**, not rewritten by the AI.
+- **Highlighted words** are defined from MeSH first, which works even before the AI is set up.
 - **Reports** are read with on-device text recognition (Tesseract.js); nothing is uploaded anywhere.
 - **Care near you** uses live OpenStreetMap hospital data.
 

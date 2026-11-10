@@ -150,3 +150,23 @@ This change was published to the live site from another session, so it existed o
 - **API (application programming interface):** a web address that returns data (usually JSON) instead of a page, made for programs. `rest.ensembl.org/variation/human/rs334?pops=1` is one.
 - **Context budget:** a small on-device AI can only read a few thousand words, so `ground()` picks at most 5 sources and trims each one. Dataset descriptions are kept out of that budget on purpose.
 - **Bias notes:** UK Biobank participants are mostly white British adults aged 40–69, so the AI is told to say that its findings may not apply everywhere. Good data tools state who the data does and doesn't represent.
+
+### Commit: "Require AI setup before searching, and add trusted databases with Experimental tags"
+**1. A "state machine" for the AI.** The AI can be in one of a few clear states: `checking → not_setup | unsupported → setting_up → ready` (or `error`). One object, `AI`, holds the current state, and one function, `setAI()`, changes it and redraws everything that shows it: the status chip, the banner and the setup screen. When several parts of a page show the same thing, keeping a single source of truth stops them from disagreeing.
+
+**2. A gate.** `run()` (search) and `analyzeReport()` now start with `aiGate()`. Outside Claude, if the AI isn't set up, the gate remembers what you were trying to do (`AI.pending`), opens the setup screen, and stops. When setup finishes, `runPending()` carries on with your search or report. This "remember the request, then resume it" pattern is common in apps, for example a login screen that returns you to the page you wanted.
+
+**3. Being honest about resources.** The setup screen reads what the browser will share: `navigator.gpu` (can it run AI), `navigator.deviceMemory` (rough memory), `navigator.storage.estimate()` (free space), `navigator.connection` (mobile data or Data Saver) and `navigator.getBattery()`. Some browsers hide some of these, so every check is optional. `navigator.storage.persist()` asks the browser not to delete the downloaded AI when space runs low.
+
+**4. More trustworthy databases, each chosen for one job:**
+
+| Database | Job in MedQuery |
+|---|---|
+| MeSH (US National Library of Medicine) | Official definitions of medical terms; also used for highlight-a-word |
+| Cochrane systematic reviews | The strongest summaries of whether treatments work |
+| Mondo Disease Ontology (includes Orphanet) | Definitions of rare diseases |
+| ChEMBL (EMBL-EBI) | Whether a medicine is approved (phase 4) or still in trials |
+| ClinicalTrials.gov | Trials recruiting now, shown as **Experimental** |
+| ClinVar, LOINC, WHO trials registry | Genetic variants, lab test names and codes, trials worldwide (links) |
+
+**5. Showing data as it is.** Clinical trials are displayed straight from ClinicalTrials.gov instead of being passed through the AI, so a small model can't misreport them. **Lesson:** when a fact comes from a trusted database, show it directly; use the AI only to explain.
