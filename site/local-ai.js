@@ -157,45 +157,57 @@ async function loadBrowserEngine(modelId, onProgress) {
   return loading;
 }
 
+// Some models fail in WebLLM's strict JSON mode partway through an answer (e.g. "Grammar matcher
+// rejected the newly sampled token"). When that happens we retry in plain mode, which our
+// parseJSONLoose() can still read, and remember not to use strict mode for that model again.
+const JSON_OFF_KEY = "medquery.jsonModeOff";
+const jsonOff = id => { try { return !!JSON.parse(localStorage.getItem(JSON_OFF_KEY) || "{}")[id]; } catch { return false; } };
+function setJsonOff(id) { try { const m = JSON.parse(localStorage.getItem(JSON_OFF_KEY) || "{}"); m[id] = true; localStorage.setItem(JSON_OFF_KEY, JSON.stringify(m)); } catch {} }
+const isCancel = (e, signal) => e?.code === "cancelled" || signal?.aborted;
+// Shorten the longest message (the SOURCES block first) when a prompt is too long for a small model
+function shrinkMessages(messages, ratio) {
+  const i = messages.reduce((best, m, k) => m.content.length > messages[best].content.length ? k : best, 0);
+  const c = messages[i].content, at = c.indexOf("SOURCES"), end = c.indexOf("\nTASK:");
+  let out;
+  if (at >= 0 && end > at) { const src = c.slice(at, end); out = c.slice(0, at) + src.slice(0, Math.floor(src.length * ratio)) + "\n[…sources shortened to fit…]\n" + c.slice(end); }
+  else out = c.slice(0, Math.floor(c.length * ratio));
+  return messages.map((m, k) => k === i ? { ...m, content: out } : m);
+}
 async function chatBrowser(messages, { json, onText, signal, maxTokens, onProgress, settings }) {
   const eng = await loadBrowserEngine(settings.model, onProgress);
   touchIdle();
-  const req = { messages, temperature: 0.2, max_tokens: maxTokens || 1400, stream: true, extra_body: { enable_thinking: false } };
-  if (json) req.response_format = { type: "json_object" };
-  let out = "";
-  let stream;
-  try { stream = await eng.chat.completions.create(req); }
-  catch (e) { if (json) { delete req.response_format; stream = await eng.chat.completions.create(req); } else throw e; }
-  for await (const chunk of stream) {
-    if (signal?.aborted) { try { eng.interruptGenerate(); } catch {} throw Object.assign(new Error("cancelled"), { code: "cancelled" }); }
-    const d = chunk.choices?.[0]?.delta?.content || "";
-    if (d) { out += d; onText?.({ text: out, delta: d }); }
-  }
-  touchIdle();
-  return out;
-}
-
-async function chatOllama(messages, { json, onText, signal, settings }) {
-  const base = settings.ollamaUrl.replace(/\/+$/, "");
-  let r;
-  try {
-    r = await fetch(base + "/api/chat", { method: "POST", signal, headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: settings.ollamaModel, messages, stream: true, format: json ? "json" : undefined, think: false, options: { temperature: 0.2, num_ctx: 8192 } }) });
-  } catch (e) {
-    if (signal?.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled" });
-    throw Object.assign(new Error("Can't reach Ollama at " + base + ". Is it running, and allowed for this site?"), { code: "ollama_unreachable" });
-  }
-  if (!r.ok) throw Object.assign(new Error("Ollama error " + r.status + ": " + (await r.text()).slice(0, 200)), { code: "ollama_error" });
-  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "", out = "";
-  for (;;) {
-    const { done, value } = await reader.read(); if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let i; while ((i = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1); if (!line) continue;
-      try { const j = JSON.parse(line); const d = j.message?.content || ""; if (d) { out += d; onText?.({ text: out, delta: d }); } } catch {}
+  const strict = json && !jsonOff(settings.model);
+  const once = async (msgs, useStrict) => {
+    const req = { messages: msgs, temperature: 0.2, max_tokens: maxTokens || 1400, stream: true, extra_body: { enable_thinking: false } };
+    if (useStrict) req.response_format = { type: "json_object" };
+    let out = "";
+    const stream = await eng.chat.completions.create(req);
+    for await (const chunk of stream) {
+      if (signal?.aborted) { try { eng.interruptGenerate(); } catch {} throw Object.assign(new Error("cancelled"), { code: "cancelled" }); }
+      const d = chunk.choices?.[0]?.delta?.content || "";
+      if (d) { out += d; onText?.({ text: out, delta: d }); }
+    }
+    return out;
+  };
+  let msgs = messages, strictNow = strict;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const out = await once(msgs, strictNow && !jsonOff(settings.model));
+      touchIdle();
+      return out;
+    } catch (e) {
+      if (isCancel(e, signal)) throw Object.assign(new Error("cancelled"), { code: "cancelled" });
+      const msg = String(e?.message || e), name = e?.name || "";
+      console.warn("MedQuery on-device AI error:", name, msg);
+      try { eng.resetChat?.(); } catch {}
+      if (/ContextWindowSizeExceeded|exceed context window/i.test(name + " " + msg)) { msgs = shrinkMessages(msgs, .55); continue; }
+      if (strictNow && /grammar|response.?format|json/i.test(name + " " + msg)) { setJsonOff(settings.model); strictNow = false; continue; } // strict JSON mode is broken for this model
+      if (strictNow) { strictNow = false; continue; } // unknown error: try once more in plain mode
+      if (/DeviceLost|device was lost|device lost|out of memory|OOM/i.test(name + " " + msg)) { await freeMemory(); throw Object.assign(new Error("The graphics chip ran out of memory or was reset."), { code: "device_lost", detail: msg }); }
+      throw Object.assign(new Error(msg), { code: "engine_error", detail: (name ? name + ": " : "") + msg });
     }
   }
-  return out;
+  throw Object.assign(new Error("The AI couldn't finish the answer after several tries."), { code: "engine_error", detail: "retries exhausted" });
 }
 
 // --- Online: MedQuery's server (Cloudflare Worker) ---
@@ -287,6 +299,11 @@ export async function setup({ engine, provider, onProgress } = {}) {
     const r = await eng.chat.completions.create({ messages: test, max_tokens: 8, temperature: 0, extra_body: { enable_thinking: false } });
     if (!r?.choices?.length) throw Object.assign(new Error("The AI loaded but didn't answer the test."), { code: "test_failed" });
     reply = r.choices[0]?.message?.content || "";
+    // Also check strict JSON mode (used for answers); if it fails on this model, answers use plain mode instead
+    try {
+      const j = await eng.chat.completions.create({ messages: [{ role: "user", content: 'Reply with this JSON: {"ok": true}' }], max_tokens: 16, temperature: 0, response_format: { type: "json_object" }, extra_body: { enable_thinking: false } });
+      JSON.parse(j?.choices?.[0]?.message?.content || "x");
+    } catch (e) { console.warn("Strict JSON mode unavailable for", s.model, e); setJsonOff(s.model); try { eng.resetChat?.(); } catch {} }
     s.downloaded[s.model] = true; s.setup.browser = { model: s.model, at: Date.now() };
     touchIdle();
   }

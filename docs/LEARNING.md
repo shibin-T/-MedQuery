@@ -183,3 +183,16 @@ This change was published to the live site from another session, so it existed o
 **The draggable widget** uses *pointer events* (`pointerdown`, `pointermove`, `pointerup`), which work for mouse, touch and pen alike. Its position, minimised state and whether it's open are saved in `localStorage`.
 
 **Being honest about limits.** Browsers don't report live graphics-chip load or exactly how much memory the AI uses, so the widget shows estimates and says so.
+
+### Commit: "Fix downloaded AI failing on every search"
+**The bug:** after setting up the downloaded AI, every search ended with "The search didn't finish". Setup had passed, so the AI itself worked.
+
+**How it was found:** the setup test asks the AI for plain text ("Say OK"), but real searches ask for a *structured* (JSON) answer using WebLLM's strict JSON mode. I read WebLLM's source code (downloaded from npm) and found that strict mode can fail *partway through* an answer with "Grammar matcher rejected the newly sampled token". MedQuery only retried errors that happened *before* the answer started streaming, so these slipped through to the generic error message.
+
+**The fix:**
+1. If strict JSON mode fails, MedQuery retries in plain mode (its `parseJSONLoose()` already reads JSON from plain text) and remembers not to use strict mode for that model again.
+2. Setup now also tests strict JSON mode, so the problem is found before the first search.
+3. If a question plus its sources is too long for a small AI's memory (its "context window", about 4,000 tokens), MedQuery shortens the sources and tries again.
+4. Errors now show a specific explanation, an **Open AI menu** button and a "Technical detail" line, so the next bug is quicker to diagnose.
+
+**Lessons:** a test should check the same thing the real work does (plain text passing didn't prove JSON would). And when a library misbehaves, reading its source code is often the fastest way to see exactly what it does.

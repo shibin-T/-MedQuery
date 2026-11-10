@@ -1026,14 +1026,15 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     };
   }
 
-  function renderError(title, msg, q) {
+  function renderError(title, msg, q, detail, actions) {
     const r = $("#report"); r.replaceChildren();
     r.append(el("div", { class: "err" },
       el("div", { class: "meta", text: "No answer" }),
       el("h2", { text: title, style: "font-family:var(--f-display);margin:0" }),
       el("p", { text: msg, style: "margin:0;color:var(--muted)" }),
       q ? el("p", { style: "margin:0" }, "The reference links beside this are already set to “" + q + "”.") : null,
-      q ? el("button", { class: "stop", type: "button", text: "Try again", onclick: () => run(q, { keepMode: true }) }) : null
+      el("div", { class: "setup-actions" }, q ? el("button", { class: "stop", type: "button", text: "Try again", onclick: () => run(q, { keepMode: true }) }) : null, ...(actions || [])),
+      detail ? el("p", { class: "note err-detail", text: "Technical detail: " + String(detail).slice(0, 240) }) : null
     ));
   }
 
@@ -3062,9 +3063,18 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         rate_limited: ["Too many searches right now", "Wait a minute, then search again."],
         session_expired: ["You were signed out", "Sign in to Claude again, then repeat the search."],
         refused: ["This question can't be answered here", "Try rephrasing it as a general medical question."],
-        invalid_json: ["The answer came back incomplete", "Try the search again, or make it more specific."]
-      }[code] || ["The search didn't finish", "The connection dropped before the answer was complete. Try again."];
-      renderError(copy[0], copy[1], q);
+        invalid_json: ["The answer came back incomplete", "The AI's reply couldn't be read. Try again, or make the search more specific." + (IN_CLAUDE ? "" : " Smaller downloaded AIs make this mistake more often; a bigger size or the online AI is more reliable.")],
+        device_lost: ["The graphics chip couldn't keep up", "The device ran out of graphics memory or reset the graphics chip. Close other heavy tabs and try again, or choose a smaller size or the online AI in the AI menu."],
+        engine_error: ["The AI on this device stopped with an error", "Try again. If it keeps happening, open the AI menu and test the AI, choose another size, or use the online AI."],
+        daily_limit: ["Today's free online allowance is used up", "Switch to the downloaded AI in the AI menu, or try again tomorrow."],
+        online_unreachable: ["Couldn't reach the online AI", "Check your internet connection and try again, or switch to the downloaded AI in the AI menu."],
+        online_error: ["The online AI had a problem", "Try again in a minute, or switch to the downloaded AI in the AI menu."],
+        puter_signin: ["Sign in to Puter to use the online AI", "Open the AI menu to sign in again, or switch to another AI."],
+        ai_not_ready: ["The AI isn't set up", "Open the AI menu to set one up."]
+      }[code] || ["The search didn't finish", IN_CLAUDE ? "The connection dropped before the answer was complete. Try again." : "The AI stopped before the answer was complete. Try again, or open the AI menu to test it."];
+      const menuBtn = !IN_CLAUDE ? [el("button", { class: "stop", type: "button", text: "Open AI menu", onclick: () => openSetup() })] : [];
+      if (!IN_CLAUDE) console.warn("MedQuery search error:", e);
+      renderError(copy[0], copy[1], q, !IN_CLAUDE && code !== "cancelled" ? (e?.detail || e?.message || (code ? "code " + code : String(e))) : "", menuBtn);
     }
   }
 
