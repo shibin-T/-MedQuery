@@ -162,6 +162,28 @@ aside.rail{min-width:0}
 .srcs a{display:flex;justify-content:space-between;gap:8px;padding:8px 0;text-decoration:none;color:var(--ink);font-size:.9rem}
 .srcs a span{color:var(--muted);font-family:var(--f-mono);font-size:.7rem;align-self:center;white-space:nowrap}
 .srcs a:hover{color:var(--accent)}
+/* Verify at the source: real articles */
+.srcs .art{display:grid;gap:3px;padding:9px 0}
+.srcs .art a{display:block;padding:0;font-weight:600;line-height:1.3}
+.srcs .art a::after{content:" ↗";color:var(--muted);font-weight:400}
+.srcs .art-meta{font-family:var(--f-mono);font-size:.68rem;color:var(--muted);letter-spacing:.02em;overflow-wrap:anywhere}
+.srcs .art-by{font-size:.78rem;color:var(--muted)}
+.srcs .art-tag{display:inline-block;border:1px solid var(--rule);border-radius:999px;padding:0 7px;margin-right:6px;font-family:var(--f-mono);font-size:.64rem;text-transform:uppercase;letter-spacing:.05em}
+.srcs .art-tag.ai{border-color:var(--warn);color:var(--warn)}
+.srcs-note{font-size:.76rem!important}
+/* Best Care for {condition} */
+.best h4 span{color:var(--accent)}
+.best .best-spec{font-size:.84rem;color:var(--ink);margin:0 0 8px}
+.best .best-form{display:flex;gap:6px;margin-bottom:6px}
+.best .best-form input{flex:1;min-width:0;border:1px solid var(--rule);background:var(--paper);color:var(--ink);border-radius:8px;padding:9px 11px;font:inherit;font-size:.92rem}
+.best .best-form button{border:1px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:8px;padding:0 12px;font:600 .84rem var(--f-body);cursor:pointer}
+.best .best-gps{border:1px solid var(--rule);background:transparent;color:var(--ink);border-radius:8px;padding:6px 10px;font:500 .82rem var(--f-body);cursor:pointer;margin-bottom:10px}
+.best-list{display:grid;gap:8px}
+.best-rank{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font:700 .75rem var(--f-body);margin-right:6px}
+.best-why{display:flex;flex-wrap:wrap;gap:4px}
+.best-why span{font-size:.72rem;border-radius:999px;padding:1px 8px;background:var(--accent-soft);color:var(--ink)}
+.best-why .ai{background:transparent;border:1px dashed var(--accent)}
+.call-ask label{display:flex;gap:8px;align-items:center;font-size:.9rem}
 .lvl{border:1px solid var(--rule);padding:1px 8px;border-radius:4px}
 .sec h4{margin:0 0 4px;font-size:.82rem;font-weight:600;color:var(--muted)}
 .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 24px}
@@ -579,6 +601,7 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
           <p id="srcNote"></p>
           <ul class="srcs" id="srcs"></ul>
         </div>
+        <div class="panel best" id="best" hidden></div>
       </aside>
     </main>
   </div>
@@ -608,23 +631,41 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
   };
   let mode = "auto", sample = null, sampleChecked = false, ctl = null, current = null;
 
-  const SOURCES = [
-    { name: "Europe PMC (open access only)", tag: "free full text", url: q => "https://europepmc.org/search?query=(" + q + ")%20AND%20(OPEN_ACCESS%3Ay)" },
-    { name: "PubMed (free full text)", tag: "research", url: q => "https://pubmed.ncbi.nlm.nih.gov/?term=" + q + "&filter=simsearch2.ffrft" },
-    { name: "Cochrane reviews (via PubMed)", tag: "evidence", url: q => "https://pubmed.ncbi.nlm.nih.gov/?term=(" + q + ")%20AND%20%22Cochrane%20Database%20Syst%20Rev%22%5Bjournal%5D" },
-    { name: "MedlinePlus (NIH)", tag: "patient", url: q => "https://vsearch.nlm.nih.gov/vivisimo/cgi-bin/query-meta?v%3Aproject=medlineplus&query=" + q },
-    { name: "NCBI Bookshelf / StatPearls", tag: "clinical", url: q => "https://www.ncbi.nlm.nih.gov/books/?term=" + q },
-    { name: "DailyMed (FDA labels)", tag: "drugs", url: q => "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=" + q },
-    { name: "CDC", tag: "public health", url: q => "https://search.cdc.gov/search/?query=" + q },
-    { name: "WHO", tag: "global", url: q => "https://www.who.int/home/search-results?indexCatalogue=genericsearchindex1&searchQuery=" + q },
-    { name: "PLOS Medicine", tag: "open journal", url: q => "https://journals.plos.org/plosmedicine/search?q=" + q }
-  ];
-  function renderSources(term) {
-    const q = encodeURIComponent(term);
-    $("#srcNote").textContent = "Open “" + term + "” in free, open-access sources.";
-    const ul = $("#srcs"); ul.replaceChildren();
-    for (const s of SOURCES) ul.append(el("li", {}, el("a", { href: s.url(q), target: "_blank", rel: "noopener" }, s.name, el("span", { text: s.tag + " ↗" }))));
+  // ---------- Verify at the source: real articles with direct links (site/medquery-core.js) ----------
+  let CORE = null; // shared, platform-neutral module (also used by the mobile app)
+  async function loadCore() { CORE ||= await import("./medquery-core.js"); return CORE; }
+  let srcToken = 0, srcShown = { term: "", list: [] };
+  function articleItem(a) {
+    const meta = [a.publisher, a.journal && a.journal !== a.publisher ? a.journal : "", a.year].filter(Boolean).join(" · ");
+    return el("li", { class: "art" },
+      el("div", {}, el("span", { class: "art-tag" + (a.unverified ? " ai" : ""), text: a.unverified ? "AI-cited" : (a.type || "Article") })),
+      el("a", { href: a.url, target: "_blank", rel: "noopener", text: a.title }),
+      a.authors ? el("div", { class: "art-by", text: a.authors }) : null,
+      el("div", { class: "art-meta", text: meta }));
   }
+  function showArticles(term, list, note) {
+    srcShown = { term, list };
+    $("#srcNote").textContent = note || (list.length ? "Read the articles behind this answer, free, from trusted public and peer-reviewed sources." : "");
+    const ul = $("#srcs"); ul.replaceChildren(...list.map(articleItem));
+  }
+  // kind: disease | test | drug | question. aiEvidence: links the AI named, used only if live lookups fail.
+  async function renderSources(term, kind, aiEvidence) {
+    term = str(term); if (!term) return;
+    const my = ++srcToken;
+    if (srcShown.term.toLowerCase() === term.toLowerCase() && srcShown.list.length) return;
+    $("#srcNote").textContent = "Finding articles on “" + term + "”…";
+    $("#srcs").replaceChildren();
+    let list = [];
+    try { const C = await loadCore(); list = await C.findArticles(term, kind || "disease"); } catch (e) { console.warn("Article lookup failed:", e); }
+    if (my !== srcToken) return;
+    if (list.length) return showArticles(term, list);
+    const ai = CORE && aiEvidence ? CORE.articlesFromAI(aiEvidence) : [];
+    if (ai.length) return showArticles(term, ai, "The article libraries couldn't be reached from this view, so these are articles the AI cited. Each link goes to a trusted publisher; check that it matches the topic.");
+    srcShown = { term: "", list: [] };
+    $("#srcNote").textContent = "Couldn't reach the free article libraries (MedlinePlus, NCBI Bookshelf, PubMed Central, Cochrane) right now.";
+    $("#srcs").replaceChildren(el("li", {}, el("button", { class: "mini", type: "button", text: "Try again", onclick: () => renderSources(term, kind, aiEvidence) })));
+  }
+  function useArticles(term, list) { srcToken++; showArticles(term, list); }
 
   // ---------- Currency (approximate conversion of USD estimates; INR uses India-specific prices) ----------
   const FX = { USD: [1, "$"], INR: [88, "₹"], EUR: [0.86, "€"], GBP: [0.75, "£"], JPY: [150, "¥"], CNY: [7.1, "CN¥"], AUD: [1.52, "A$"], CAD: [1.38, "C$"], CHF: [0.8, "CHF "], SGD: [1.29, "S$"], AED: [3.67, "AED "], SAR: [3.75, "SAR "], BDT: [122, "৳"], PKR: [282, "Rs "], NPR: [141, "NPR "], LKR: [300, "LKR "], NGN: [1500, "₦"], KES: [129, "KSh "], ZAR: [17.6, "R "], BRL: [5.4, "R$"], MXN: [18.5, "MX$"], RUB: [80, "₽"], IDR: [16300, "Rp "], PHP: [57, "₱"] };
@@ -709,14 +750,13 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       const ul = el("ul", { class: "ev-list" });
       for (const x of evItems) {
         const label = [str(x.source), str(x.title), str(x.year)].filter(Boolean).join(" · ");
-        const q = encodeURIComponent((str(x.title) || str(x.source)).slice(0, 160));
-        const href = /^https:\/\//.test(str(x.url)) ? str(x.url) : "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)";
-        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href, target: "_blank", rel: "noopener", text: "Read free ↗" })));
+        const href = /^https:\/\//.test(str(x.url)) && (!CORE || CORE.isTrustedUrl(str(x.url))) ? str(x.url) : "";
+        ul.append(el("li", {}, el("span", { text: label }), href ? " " : null, href ? el("a", { href, target: "_blank", rel: "noopener", text: "Read the article ↗" }) : null));
       }
       r.append(el("details", { class: "evidence", ...(conf && conf !== "high" ? { open: "" } : {}) },
         el("summary", {}, "Open-access sources", conf ? el("span", { class: "conf", text: conf + " confidence" }) : null),
         ul,
-        el("p", { class: "ev-note", text: "MedQuery bases answers on free, open-access journals and public guidelines. The links search Europe PMC's open-access collection so you can read the evidence yourself." })));
+        el("p", { class: "ev-note", text: "MedQuery bases answers on free, open-access journals and public guidelines. Links open the article itself. The full list is under “Verify at the source”." })));
     }
 
     const fu = el("div", { class: "followup" });
@@ -899,7 +939,7 @@ Query: """${q.slice(0, 2000)}"""
 
 ${length}
 
-Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects {"source": open-access journal or free guideline body, "title": real article/guideline title or topic page you are confident exists, "year": "YYYY or ''"}), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
+Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects for real, free-to-read articles you are confident exist: {"source": open-access journal or free guideline body, "title": exact article/guideline title, "year": "YYYY or ''", "pmcid": "PMC… or ''", "nbk": "NBK… for NCBI Bookshelf / StatPearls, or ''", "doi": "or ''", "url": "direct article URL on medlineplus.gov, ncbi.nlm.nih.gov, who.int, cdc.gov, nice.org.uk or nhs.uk, or ''"}; give an identifier or URL only when you are sure of it), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
 Then the fields for that kind:
 - disease: "definition" (1-2 plain sentences), "symptoms": {"common": [...], "uncommon": [...]}, "causes": [...], "tests": [{"name","why"}] (screening and confirmatory tests), "homeRemedies": {"applicable": true only for simple, usually self-limiting conditions (e.g. common cold, mild gastroenteritis, minor burns) else false, "note": "one line on when to see a doctor, or why home remedies are not appropriate", "items": [{"name","how": "one-line recipe/method","allergens": [list every known common allergen in it, e.g. milk, egg, peanut, tree nuts, soy, wheat/gluten, sesame, mustard, fish, shellfish, celery, honey (never for infants under 1), citrus, turmeric, ginger, garlic, pollen; [] if none]}]} — only well-established safe remedies, "prevention": [...], "treatments": [{"option","route": "for medicines: how it is given (route + form, e.g. Oral tablet, IV injection, Inhaler, Eye drops); '' for non-medicine treatments","note": "short","usd": [low, high] typical US cost as numbers,"inr": [low, high] typical Indian cost as numbers,"unit": "e.g. per course, per month, one-time"}].
 - test: "purpose", "specimen", "preparation", "components": [{"name","normal": "typical adult normal range","unit": "conventional unit","depends": true if the normal value meaningfully changes with age, sex, pregnancy or another factor}] — list EVERY element/parameter the test reports (e.g. CBC: hemoglobin, hematocrit, RBC, MCV, MCH, MCHC, RDW, WBC, neutrophils, lymphocytes, monocytes, eosinophils, basophils, platelets), "factors": [the factors the ranges depend on, from: "age","sex","pregnancy","fasting"], "highLow": [{"finding": "e.g. High ALT","meaning"}].
@@ -1486,10 +1526,31 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     return false;
   }
   function toastSoon(num) { setTimeout(() => toast("Opening your phone's dialer for " + num + ". If it doesn't open, dial " + num + " yourself."), 300); }
+  // Calls to hospitals need the user's permission first (a dialog, with "don't ask again");
+  // emergency buttons call straight away because every second counts.
+  const CALLOK_KEY = "medquery.callOk";
+  function askToCall(name, num, go) {
+    try { if (localStorage.getItem(CALLOK_KEY) === "1") return go(); } catch {}
+    const prev = document.activeElement;
+    const remember = el("input", { type: "checkbox", id: "callRemember" });
+    const done = ok => { box.remove(); document.removeEventListener("keydown", esc, true); prev?.focus?.(); if (!ok) return; if (remember.checked) { try { localStorage.setItem(CALLOK_KEY, "1"); } catch {} } go(); };
+    const esc = e => { if (e.key === "Escape") { e.preventDefault(); done(false); } };
+    const box = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "callTitle" }, el("section", { class: "guide call-ask" },
+      el("h2", { id: "callTitle", class: "guide-title", text: "Call " + (name || num) + "?" }),
+      el("p", { class: "guide-lede", text: "MedQuery will open your phone app and dial " + num + " for you. Normal call charges apply. You can still hang up at any time." }),
+      el("label", { for: "callRemember" }, remember, "Don't ask again on this device"),
+      el("div", { class: "guide-actions" },
+        el("button", { class: "stop", type: "button", text: "Cancel", onclick: () => done(false) }),
+        el("button", { class: "guide-ok", type: "button", text: "✆ Call now", onclick: () => done(true) }))));
+    document.body.append(box); document.addEventListener("keydown", esc, true); box.querySelector(".guide-ok").focus();
+  }
   document.addEventListener("click", e => {
     const a = e.target.closest?.('a[href^="tel:"]'); if (!a) return;
     e.preventDefault();
-    if (!dial(a.getAttribute("href"))) toast("Couldn't open the dialer. Please dial " + a.getAttribute("href").replace(/^tel:/i, "") + " yourself.");
+    const href = a.getAttribute("href"), num = href.replace(/^tel:/i, "");
+    const go = () => { if (!dial(href)) toast("Couldn't open the dialer. Please dial " + num + " yourself."); };
+    if (a.matches(".sos, .sos-alt, .sos-fab, .care-quickcall")) return go();
+    askToCall(a.dataset.name || str(a.getAttribute("aria-label")).replace(/^Call\s+/i, "").replace(/\s+[+\d][\d\s()+-]*$/, ""), num, go);
   }, true);
   function copyBtn(text, label) {
     const b = el("button", { class: "mini", type: "button", text: label || "Copy" });
@@ -1581,7 +1642,7 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     });
     host.append(el("div", { class: "care-head" }, toggle, quick), body);
     updateMapLink();
-    if (!careFor && !careLoc) list.append(el("p", { class: "care-note", text: "Type your area to see the nearest hospitals with 24-hour emergency care. Search a condition to see specialists for it." }));
+    if (!careFor && !careLoc) list.append(el("p", { class: "care-note", text: "Type your area to see the nearest hospitals with 24-hour emergency care. Search a condition to see the best hospitals for it under “Best Care”." }));
     else if (!careLoc) list.append(el("p", { class: "care-note", text: "Type your area to see hospitals and clinics for " + careFor.title + "." }));
   }
 
@@ -1677,6 +1738,114 @@ Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility 
     const target = home ? $("#homeCare") : $(".rail");
     if (home) { if (care.parentElement !== target) target.append(care); }
     else if (target.firstElementChild !== care) target.prepend(care);
+  }
+
+  // ---------- Best Care for {condition}: ranked hospitals near the user (site/medquery-core.js) ----------
+  let bestFor = null, bestCtl = null;
+  function hideBest() { bestCtl?.abort(); bestFor = null; const b = $("#best"); if (b) { b.hidden = true; b.replaceChildren(); } }
+  function renderBest(d) {
+    if (!d || !str(d.title) || (str(d.kind) && str(d.kind) !== "disease")) return hideBest();
+    if (bestFor === str(d.title) && !$("#best").hidden) return;
+    bestCtl?.abort(); bestFor = str(d.title);
+    const host = $("#best"); host.hidden = false; host.replaceChildren();
+    const spec = el("p", { class: "best-spec" });
+    loadCore().then(C => { if (bestFor) spec.replaceChildren("Specialty: ", el("b", { text: C.specialtyFor(bestFor).name })); }).catch(() => {});
+    const inp = el("input", { id: "bestLoc", type: "search", placeholder: "Your city or area, e.g. Edappally, Kochi", value: careLoc, "aria-label": "Your location", autocomplete: "address-level2" });
+    const form = el("form", { class: "best-form" }, inp, el("button", { type: "submit", text: "Find" }));
+    form.addEventListener("submit", e => {
+      e.preventDefault(); const v = inp.value.trim(); if (!v) { inp.focus(); return; }
+      if (v !== careLoc) { careLoc = v; try { localStorage.setItem(LOCKEY, careLoc); } catch {} updateSosFab(); }
+      findBest({ text: v });
+    });
+    const gps = el("button", { class: "best-gps", type: "button", text: "📍 Use my current location" });
+    gps.addEventListener("click", () => {
+      const list = $("#bestList");
+      if (!navigator.geolocation) { list.replaceChildren(el("p", { class: "care-note", text: "This browser can't share your location. Type your area instead." })); return; }
+      list.replaceChildren(el("p", { class: "care-note", text: "Asking your browser for your location…" }));
+      navigator.geolocation.getCurrentPosition(
+        pos => findBest({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+        err => list.replaceChildren(el("p", { class: "care-note", text: err.code === 1 ? "Location permission was not given. Type your area instead." : "Couldn't get your location. Type your area instead." })),
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 600000 });
+    });
+    host.append(el("h4", {}, "Best Care for ", el("span", { text: bestFor })), spec,
+      el("p", { text: "Enter your location to see the hospitals best suited to treating " + bestFor + ", with directions and phone numbers." }),
+      form, gps, el("div", { class: "best-list", id: "bestList", "aria-live": "polite" }));
+    if (careLoc) findBest({ text: careLoc });
+  }
+  async function findBest(where) {
+    const list = $("#bestList"); if (!list || !bestFor) return;
+    bestCtl?.abort(); const my = bestCtl = new AbortController(); const cond = bestFor;
+    list.replaceChildren(el("p", { class: "care-note", text: "Finding the best hospitals for " + cond + (where.text ? " near " + where.text : " near you") + "…" }));
+    let r = null;
+    try { const C = await loadCore(); r = await C.findBestCare(where, cond, { signal: my.signal, lang: navigator.language || "en", limit: 15 }); }
+    catch (e) { if (my.signal.aborted) return; console.warn("Best care lookup failed:", e); }
+    if (my !== bestCtl) return;
+    if (r && !r.origin) { list.replaceChildren(el("p", { class: "care-note", text: "Couldn't find that place. Try adding the city or country." })); return; }
+    if (!r) { await claudeCheck; if (IN_CLAUDE) return bestFromClaude(where, cond, list, my); list.replaceChildren(el("p", { class: "care-note", text: "Couldn't reach the map service right now. Try again in a minute." }), bestMapsLink(cond, where)); return; }
+    let places = r.places, note = "", aiRanked = false;
+    if (!places.length) { list.replaceChildren(el("p", { class: "care-note", text: "No hospitals are mapped near there in OpenStreetMap. Try a nearby town." }), bestMapsLink(cond, where)); return; }
+    // Inside Claude, Claude re-ranks the REAL places for this condition (it cannot add places or numbers)
+    await claudeCheck;
+    if (IN_CLAUDE) {
+      list.replaceChildren(el("p", { class: "care-note", text: "Comparing " + places.length + " hospitals for " + cond + "…" }));
+      try {
+        const sm = await getSample();
+        if (sm) {
+          const res = await sm.json(CORE.bestCarePrompt(cond, r.specialty, r.origin.label, places) + LANG_NOTE(), { signal: my.signal, modelTier: "default" });
+          const picks = arr(res?.picks).map(x => ({ i: (+x.n) - 1, why: str(x.why) })).filter(x => places[x.i]);
+          if (picks.length) { const used = new Set(picks.map(x => x.i)); places = [...picks.map(x => ({ ...places[x.i], aiWhy: x.why })), ...places.filter((_, i) => !used.has(i))]; note = str(res?.note); aiRanked = true; }
+        }
+      } catch (e) { if (my.signal.aborted) return; }
+      if (my !== bestCtl) return;
+    }
+    drawBest(list, places.slice(0, 8), r, note, aiRanked, where);
+  }
+  function bestMapsLink(cond, where) {
+    const near = where.text || (where.lat != null ? where.lat.toFixed(4) + "," + where.lon.toFixed(4) : "");
+    return el("a", { class: "care-more", href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(cond + " hospital near " + near), target: "_blank", rel: "noopener", text: "Search on Google Maps ↗" });
+  }
+  function drawBest(list, places, r, note, aiRanked, where) {
+    const apps = CORE?.MAP_APPS || MAP_APPS;
+    const appSel = el("select", { "aria-label": "Open directions in" }); for (const [k, v] of Object.entries(apps)) appSel.append(el("option", { value: k, text: v.label })); appSel.value = mapApp;
+    appSel.addEventListener("change", () => { mapApp = appSel.value; try { localStorage.setItem(MAPAPP_KEY, mapApp); } catch {} drawBest(list, places, r, note, aiRanked, where); });
+    const em = emergencyFor(careLoc, r.country) || (CORE?.emergencyFor("", r.countryCode)) || ["", "112"];
+    list.replaceChildren(
+      el("p", { class: "care-note", text: (r.origin?.label ? "Near " + r.origin.label + ". " : "") + "Ranked for " + r.specialty.name.toLowerCase() + "." }),
+      el("label", { class: "care-tool" }, el("span", { text: "Directions in" }), appSel),
+      ...places.map((p, i) => el("div", { class: "place" },
+        el("div", { class: "place-top" }, el("div", { class: "place-name" }, el("span", { class: "best-rank", text: String(i + 1) }), p.name), p.km != null ? el("span", { class: "place-km", text: fmtKm(p.km) }) : null),
+        (p.aiWhy || p.why?.length) ? el("div", { class: "best-why" }, p.aiWhy ? el("span", { class: "ai", text: p.aiWhy }) : null, ...arr(p.why).slice(0, 3).map(w => el("span", { text: w }))) : null,
+        el("div", { class: "place-area", text: p.address || "Address not listed. Use Directions to find it." }),
+        p.phone ? el("div", { class: "place-phone" }, el("span", { class: "ph-label", text: (p.er ? "Emergency / main line" : "Phone") + ":" }), el("span", { class: "ph-num", text: p.phone })) : el("div", { class: "place-phone muted", text: "No phone number in the map data. Check the hospital's listing in your map app." }),
+        el("div", { class: "place-actions" },
+          el("a", { class: "pa pa-dir", href: (apps[mapApp] || apps.google).url(p, r.origin), target: "_blank", rel: "noopener", "aria-label": "Directions to " + p.name }, "➤ Directions"),
+          p.phone ? el("a", { class: "pa pa-call", href: telHref(p.phone), "data-name": p.name, "aria-label": "Call " + p.name + " " + p.phone }, "✆ Call") : null,
+          p.website && /^https?:\/\//.test(p.website) ? el("a", { class: "mini", href: p.website, target: "_blank", rel: "noopener", text: "Website ↗" }) : null,
+          p.phone ? copyBtn(p.phone, "Copy number") : null))),
+      el("p", { class: "care-note", text: (note ? note + " " : "") + (aiRanked ? "Claude chose the order from live OpenStreetMap hospitals; " : "Ordered by matching specialty, hospital size, teaching status, 24-hour emergency care and distance, from live OpenStreetMap data; ") + "this is not an official quality rating. Call before you travel. Distances are straight-line. In an emergency call " + em[1] + "." }),
+      bestMapsLink(bestFor || "", where));
+  }
+  // When the live map can't be reached from inside Claude: Claude's own knowledge, clearly labelled
+  async function bestFromClaude(where, cond, list, my) {
+    const s = await getSample(); if (my !== bestCtl) return;
+    if (!s) { list.replaceChildren(el("p", { class: "care-note", text: "Couldn't reach the map service right now." }), bestMapsLink(cond, where)); return; }
+    const loc = where.text || (where.lat.toFixed(4) + ", " + where.lon.toFixed(4));
+    try {
+      const res = await s.json(`A patient at "${loc.slice(0, 120)}" needs the best hospitals to treat "${cond.slice(0, 100)}". List up to 6 REAL, well-established hospitals or specialist centres known for treating this, near that location, best first. Only include places you are confident exist. Never invent a facility, address, coordinates or phone number; give a phone number ONLY if you are highly confident it is the hospital's active main or emergency line, else "".
+Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep names and addresses as written locally.)" : ""}: {"origin":{"lat":0,"lon":0},"country":"","specialty":"","places":[{"name":"","address":"","lat":0,"lon":0,"phone":"","emergency24h":true,"why":"under 18 words"}],"note":""}`, { modelTier: "default", signal: my.signal });
+      if (my !== bestCtl) return;
+      const ok = (a, b) => isFinite(a) && isFinite(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180 && !(a === 0 && b === 0);
+      const o = where.lat != null ? { lat: where.lat, lon: where.lon } : ok(+res?.origin?.lat, +res?.origin?.lon) ? { lat: +res.origin.lat, lon: +res.origin.lon } : null;
+      const places = arr(res?.places).filter(p => str(p.name)).slice(0, 6).map(p => {
+        const has = ok(+p.lat, +p.lon), phone = str(p.phone).replace(/[^\d+\-\s()]/g, "").trim();
+        return { name: str(p.name), address: str(p.address), lat: has ? +p.lat : null, lon: has ? +p.lon : null, km: has && o ? kmBetween(o, { lat: +p.lat, lon: +p.lon }) : null, phone: phone.replace(/\D/g, "").length >= 3 ? phone : "", er: !!p.emergency24h, aiWhy: str(p.why), why: [], dest: [str(p.name), str(p.address)].filter(Boolean).join(", ") };
+      });
+      if (!places.length) { list.replaceChildren(el("p", { class: "care-note", text: str(res?.note) || "No well-known hospital found for that area." }), bestMapsLink(cond, where)); return; }
+      drawBest(list, places, { origin: o ? { ...o, label: where.text || "" } : null, specialty: { name: str(res?.specialty) || "this condition" }, country: str(res?.country), countryCode: "" }, (str(res?.note) ? str(res.note) + " " : "") + "From Claude's general knowledge, not a live directory: confirm details before relying on them.", true, where);
+    } catch (e) {
+      if (e?.code === "cancelled" || my !== bestCtl) return;
+      list.replaceChildren(el("p", { class: "care-note", text: "Couldn't load hospitals. Use the map search instead." }), bestMapsLink(cond, where));
+    }
   }
 
   // ---------- Home + "What is MedQuery?" widget ----------
@@ -2163,8 +2332,9 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     const again = el("div", { class: "more" }, el("button", { class: "more-btn", type: "button", onclick: openGuide }, "Scan another report", el("span", { text: "PDF or a clear photo of the printed report" })));
     r.append(again);
     r.append(el("div", { class: "disclaimer" }, el("b", { text: "Privacy: " }), "only lab values were used; personal details were skipped and nothing was saved. This explains your results and is not a diagnosis. In an emergency call your local emergency number."));
-    renderSources(dx.length ? str(dx[0].name) : str(d.reportType) || "lab test results");
-    setCareTopic(dx.length ? { title: str(dx[0].name), kind: "disease" } : null);
+    renderSources(dx.length ? str(dx[0].name) : str(d.reportType) || "lab test results", dx.length ? "disease" : "test");
+    if (dx.length) renderBest({ title: str(dx[0].name), kind: "disease" }); else hideBest();
+    setCareTopic(null);
   }
   const lab = $("#upBtn"); if (!lab) console.warn("upload button missing");
 
@@ -2271,7 +2441,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     lastRun = { q, opts: { detail: opts2.detail, context: opts2.context } };
     clearTimeout(aiTimer); aiCtl?.abort(); openPanel(false); input.blur(); hidePop(); closeZoom();
     document.body.classList.add("has-results"); $("#results").hidden = false; placeCare();
-    renderSources(opts2.context ? str(opts2.context.title) : q);
+    if (!opts2.context && !opts2.keepMode) { srcToken++; srcShown = { term: "", list: [] }; $("#srcNote").textContent = "Articles for this topic appear with the answer."; $("#srcs").replaceChildren(); hideBest(); }
     if (!opts2.detail) pushRecent(q);
     ctl?.abort();
     const myCtl = ctl = new AbortController();
@@ -2296,6 +2466,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
           d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
           d.title = str(d.title) || term;
           d.evidence = g.sources.map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));
+          if (g.sources.length && !opts2.context) useArticles(d.title, g.sources);
           if (!g.sources.length) { d.confidence = "low"; d.uncertainty = str(d.uncertainty) || "No official source could be reached, so this answer comes only from a small on-device AI and may be wrong. Check it with a doctor or a trusted source."; d.needsResearch = true; }
           d.engineNote = "Answered on your device · " + s.describe();
         }
@@ -2308,9 +2479,14 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       ui.done();
       if (myCtl !== ctl) return;
       if (!d || typeof d !== "object" || !str(d.summary)) throw { code: "invalid_json" };
+      // Claude's evidence: keep only direct links to trusted publishers (built from PMC / NBK / DOI ids)
+      if (s.engine !== "local") { try { const C = await loadCore(); d.evidence = arr(d.evidence).map(x => x && typeof x === "object" ? { ...x, url: C.articlesFromAI([x])[0]?.url || "" } : x); } catch {} }
+      if (myCtl !== ctl) return;
       registerAI(d); current = d; renderReport(d, q, !!opts2.detail);
-      if (!opts2.context && !opts2.keepMode) setCareTopic(d); else if (!careFor) setCareTopic(d);
-      if (!opts2.context && str(d.title)) renderSources(str(d.title));
+      // "Care near you" stays general (emergency) for a disease: "Best Care for …" covers the condition
+      const careTopic = d.kind === "disease" ? null : d;
+      if (!opts2.context && !opts2.keepMode) setCareTopic(careTopic); else if (!careFor && careTopic) setCareTopic(careTopic);
+      if (!opts2.context && str(d.title)) { renderSources(str(d.title), d.kind, d.evidence); renderBest(d); }
     } catch (e) {
       ui.done();
       if (myCtl !== ctl) return;
