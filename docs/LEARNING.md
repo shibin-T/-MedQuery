@@ -196,3 +196,6 @@ This change was published to the live site from another session, so it existed o
 4. Errors now show a specific explanation, an **Open AI menu** button and a "Technical detail" line, so the next bug is quicker to diagnose.
 
 **Lessons:** a test should check the same thing the real work does (plain text passing didn't prove JSON would). And when a library misbehaves, reading its source code is often the fastest way to see exactly what it does.
+
+### Commit: "Add a version number and load the AI file with it"
+**Caching.** To load faster, browsers keep copies of files and GitHub Pages tells them they may reuse a copy for up to 10 minutes. Right after an update, a visitor can still get the *old* page, or worse, a new `index.html` with an old `local-ai.js`. Loading the module as `local-ai.js?v=2026-11-10.3` makes each version a different address, so the two files always match. This trick is called **cache busting**. The version number now shows in the AI menu, the resource widget and error messages, so you can tell at a glance which version you're running.

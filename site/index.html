@@ -1034,7 +1034,7 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       el("p", { text: msg, style: "margin:0;color:var(--muted)" }),
       q ? el("p", { style: "margin:0" }, "The reference links beside this are already set to “" + q + "”.") : null,
       el("div", { class: "setup-actions" }, q ? el("button", { class: "stop", type: "button", text: "Try again", onclick: () => run(q, { keepMode: true }) }) : null, ...(actions || [])),
-      detail ? el("p", { class: "note err-detail", text: "Technical detail: " + String(detail).slice(0, 240) }) : null
+      detail ? el("p", { class: "note err-detail", text: "Technical detail (version " + MQ_BUILD + "): " + String(detail).slice(0, 240) }) : null
     ));
   }
 
@@ -2538,7 +2538,9 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   // Inside Claude the connection may appear a moment after the page starts, so wait briefly before choosing the on-device AI
   const claudeCheck = IN_CLAUDE ? Promise.resolve(true) : new Promise(res => { const t0 = Date.now(); const tick = () => { if (typeof window.claude?.use === "function") { IN_CLAUDE = true; res(true); } else if (Date.now() - t0 > 1500) res(false); else setTimeout(tick, 100); }; tick(); });
   let MQL = null; // the on-device AI module, loaded only outside Claude
-  async function loadLocalModule() { MQL ||= await import("./local-ai.js"); return MQL; }
+  // Version of this page. local-ai.js is loaded with the same version so the browser never mixes an old copy with a new one.
+  const MQ_BUILD = "2026-11-10.3";
+  async function loadLocalModule() { MQL ||= await import("./local-ai.js?v=" + MQ_BUILD); return MQL; }
   async function getSample() {
     if (sampleChecked) return sample;
     await claudeCheck;
@@ -2874,7 +2876,8 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         ready("ollama") ? [cur !== "ollama" && use("ollama"), act("Test", () => testEngine("ollama")), act("Settings", () => openSetup("ollama")), act("Disconnect", async () => { await MQL.forgetEngine("ollama"); sampleChecked = false; setAI(MQL.isSetUp() ? "ready" : "not_setup"); })] : [act("Set up", () => openSetup("ollama"), "guide-ok")])),
       el("p", { class: "note", id: "engTest", "aria-live": "polite" }),
       el("label", { class: "eng-toggle" }, el("input", { type: "checkbox", ...(resState().open ? { checked: "" } : {}), onchange: e => toggleResWidget(e.target.checked) }), " Show the resource usage widget"),
-      el("div", { class: "guide-actions" }, act("Restart MedQuery", restartMedQuery), el("button", { class: "guide-ok", type: "button", text: "Done", onclick: closeSetup })));
+      el("div", { class: "guide-actions" }, act("Restart MedQuery", restartMedQuery), el("button", { class: "guide-ok", type: "button", text: "Done", onclick: closeSetup })),
+      el("p", { class: "note", text: "MedQuery version " + MQ_BUILD + (MQL.BUILD && MQL.BUILD !== MQ_BUILD ? " (AI files " + MQL.BUILD + ": reload the page)" : "") }));
   }
   async function testEngine(kind) {
     const out = $("#engTest"); if (out) out.textContent = "Testing " + ENGINE_NAME[kind] + "…";
@@ -2972,7 +2975,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       el("button", { class: "res-btn-mini", type: "button", "aria-label": "Close (reopen with the 📊 button at the top right)", text: "×", onclick: () => toggleResWidget(false) }));
     const body = s.min ? null : el("div", { class: "res-body" }, el("dl", {}, ...rows.flatMap(([a, b]) => [el("dt", { text: a }), el("dd", { text: b })])),
       AI.state === "setting_up" ? el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })) : null,
-      el("p", { class: "res-note", text: "Browsers don't report live graphics-chip load or exact AI memory; memory figures are estimates." }),
+      el("p", { class: "res-note", text: "Browsers don't report live graphics-chip load or exact AI memory; memory figures are estimates. MedQuery version " + MQ_BUILD + "." }),
       el("div", { class: "res-actions" }, ready && k === "browser" && MQL.engineLoaded() ? el("button", { class: "mini", type: "button", text: "Free memory", onclick: async () => { await MQL.freeMemory(); renderResWidget(); } }) : null, el("button", { class: "mini", type: "button", text: "AI menu", onclick: () => openSetup() })));
     resBox.dataset.min = s.min ? "yes" : "no";
     resBox.replaceChildren(head, body || "");

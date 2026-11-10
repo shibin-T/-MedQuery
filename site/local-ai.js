@@ -18,6 +18,7 @@
 // Europe PMC open-access research) and tell the model to answer only from them.
 // ---------------------------------------------------------------------------
 
+export const BUILD = "2026-11-10.3"; // must match MQ_BUILD in index.html
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.87";
 const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
 const SETTINGS_KEY = "medquery.localAI";
