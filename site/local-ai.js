@@ -295,42 +295,112 @@ export async function ocr(blobs, onProgress) {
 }
 
 // ---------------------------------------------------------------------------
-// Care near you from OpenStreetMap (no AI needed): geocode, then nearby hospitals
+// Care near you from OpenStreetMap (no AI needed)
+// Speed tricks:
+//  - If we already have coordinates (pasted map link, GPS, pin on the map), skip address lookup.
+//  - Address lookup uses Photon (fast, made for type-ahead), falling back to Nominatim.
+//  - Hospital data: ask several Overpass servers at once and use the first answer ("race").
+//  - Search a small area first; widen only if too few places are found.
+//  - Remember results for a day, keyed by rounded coordinates.
 // ---------------------------------------------------------------------------
+const PHOTON = "https://photon.komoot.io";
+const OVERPASS_SERVERS = ["https://overpass-api.de/api/interpreter", "https://overpass.private.coffee/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter"];
+const CACHE_KEY = "medquery.osmCache", DAY = 864e5;
+const cacheRead = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}"); } catch { return {}; } };
+function cacheGet(k) { const c = cacheRead()[k]; return c && Date.now() - c.t < DAY ? c.v : null; }
+function cacheSet(k, v) { try { const c = cacheRead(); c[k] = { t: Date.now(), v }; const keys = Object.keys(c).sort((a, b) => c[b].t - c[a].t); for (const old of keys.slice(40)) delete c[old]; localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch {} }
+
 let lastNominatim = 0;
 async function nominatim(path) {
   const wait = Math.max(0, lastNominatim + 1100 - Date.now()); if (wait) await new Promise(r => setTimeout(r, wait));
   lastNominatim = Date.now();
   return getJSON("https://nominatim.openstreetmap.org" + path + "&accept-language=" + encodeURIComponent(navigator.language || "en"), 12000);
 }
+const photonLabel = p => { const q = p.properties || {}; return [q.name, q.street && (q.housenumber ? q.housenumber + " " + q.street : q.street), q.district || q.locality, q.city || q.county, q.state, q.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(", "); };
+// Address suggestions while typing (optionally biased toward a known position)
+export async function suggest(q, near) {
+  if (!q || q.trim().length < 3) return [];
+  const bias = near ? `&lat=${near.lat}&lon=${near.lon}` : "";
+  const j = await getJSON(`${PHOTON}/api/?q=${encodeURIComponent(q)}&limit=5${bias}`, 5000);
+  return (j?.features || []).map(f => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], label: photonLabel(f), country: f.properties?.country || "", countryCode: (f.properties?.countrycode || "").toLowerCase() }));
+}
+export async function geocode(q) {
+  const c = cacheGet("g:" + q.toLowerCase()); if (c) return c;
+  let r = null;
+  try { r = (await suggest(q))[0] || null; } catch {}
+  if (!r) { try { const g = await nominatim("/search?format=jsonv2&addressdetails=1&limit=1&q=" + encodeURIComponent(q)); if (g?.length) r = { lat: +g[0].lat, lon: +g[0].lon, label: g[0].display_name, country: g[0].address?.country || "", countryCode: g[0].address?.country_code || "" }; } catch {} }
+  if (r) cacheSet("g:" + q.toLowerCase(), r);
+  return r;
+}
+export async function reverse(lat, lon) {
+  const k = `r:${lat.toFixed(4)},${lon.toFixed(4)}`; const c = cacheGet(k); if (c) return c;
+  let r = null;
+  try { const j = await getJSON(`${PHOTON}/reverse?lat=${lat}&lon=${lon}&limit=1`, 5000); const f = j?.features?.[0]; if (f) r = { label: photonLabel(f), country: f.properties?.country || "", countryCode: (f.properties?.countrycode || "").toLowerCase() }; } catch {}
+  if (!r) { try { const a = await nominatim(`/reverse?format=jsonv2&addressdetails=1&zoom=17&lat=${lat}&lon=${lon}`); if (a && !a.error) r = { label: a.display_name, country: a.address?.country || "", countryCode: a.address?.country_code || "" }; } catch {} }
+  if (r) cacheSet(k, r);
+  return r;
+}
+async function overpassRace(query, ms = 14000) {
+  const ctls = OVERPASS_SERVERS.map(() => new AbortController());
+  const timer = setTimeout(() => ctls.forEach(c => c.abort()), ms);
+  try {
+    return await Promise.any(OVERPASS_SERVERS.map(async (url, i) => {
+      const r = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(query), headers: { "Content-Type": "application/x-www-form-urlencoded" }, signal: ctls[i].signal });
+      if (!r.ok) throw new Error("overpass " + r.status);
+      const j = await r.json();
+      ctls.forEach((c, k) => { if (k !== i) c.abort(); }); // first answer wins; stop the others
+      return j;
+    }));
+  } finally { clearTimeout(timer); }
+}
 const R = 6371, rad = d => d * Math.PI / 180;
 const kmBetween = (a, b) => { const dLa = rad(b.lat - a.lat), dLo = rad(b.lon - a.lon); const h = Math.sin(dLa / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
-export async function findPlaces(locText, specialtyWords = []) {
-  const g = await nominatim("/search?format=jsonv2&addressdetails=1&limit=1&q=" + encodeURIComponent(locText));
-  if (!g?.length) return { origin: null, places: [], countryCode: "", country: "" };
-  const origin = { lat: +g[0].lat, lon: +g[0].lon }, countryCode = g[0].address?.country_code || "", country = g[0].address?.country || "";
-  const q = `[out:json][timeout:25];(nwr["amenity"~"^(hospital|clinic)$"](around:8000,${origin.lat},${origin.lon});nwr["healthcare"~"^(hospital|clinic)$"](around:8000,${origin.lat},${origin.lon}););out center tags 200;`;
-  let data = null;
-  for (const url of ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]) {
-    try { const r = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); if (r.ok) { data = await r.json(); break; } } catch {}
-  }
+function parseElements(els, origin, specialtyWords) {
   const seen = new Set(), places = [];
-  for (const e of data?.elements || []) {
+  for (const e of els || []) {
     const t = e.tags || {}, lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon, name = t["name:en"] || t.name;
     if (lat == null || !name) continue;
     const key = name.toLowerCase() + Math.round(lat * 1000); if (seen.has(key)) continue; seen.add(key);
     const addr = t["addr:full"] || [t["addr:housenumber"] && t["addr:street"] ? t["addr:housenumber"] + " " + t["addr:street"] : t["addr:street"], t["addr:suburb"], t["addr:city"], t["addr:postcode"]].filter(Boolean).join(", ");
     const op = ((t["operator:type"] || "") + " " + (t.operator || "")).toLowerCase();
     const specs = (t["healthcare:speciality"] || "").toLowerCase();
-    const isHospital = (t.amenity || t.healthcare) === "hospital";
     places.push({
-      name, address: addr, lat, lon, km: kmBetween(origin, { lat, lon }),
+      name, address: addr, lat, lon, exact: true, km: kmBetween(origin, { lat, lon }),
       phone: (t["contact:phone"] || t.phone || "").split(/[;,]/)[0].trim(), phoneLabel: t.emergency === "yes" ? "emergency" : "main line",
       er: t.emergency === "yes", gov: /public|government|govt|municipal|district|state|national/.test(op), priv: /private|commercial/.test(op),
       beds: parseInt(t.beds, 10) || 0, match: specialtyWords.some(w => specs.includes(w) || name.toLowerCase().includes(w)),
-      department: specs.split(";")[0] || "", dest: [name, addr].filter(Boolean).join(", "), isHospital
+      department: specs.split(";")[0] || "", dest: [name, addr].filter(Boolean).join(", "), isHospital: (t.amenity || t.healthcare) === "hospital"
     });
   }
-  places.sort((a, b) => a.km - b.km);
-  return { origin, places: places.slice(0, 12), countryCode, country, label: g[0].display_name || locText };
+  return places.sort((a, b) => a.km - b.km);
+}
+// where: a text address OR { lat, lon, label?, country? }
+export async function findPlaces(where, specialtyWords = []) {
+  let loc = typeof where === "object" && where && isFinite(where.lat) ? { ...where } : await geocode(String(where || ""));
+  if (!loc) return { origin: null, places: [], country: "" };
+  const origin = { lat: +loc.lat, lon: +loc.lon };
+  if (!loc.country) { const rv = await reverse(origin.lat, origin.lon).catch(() => null); if (rv) Object.assign(loc, { country: rv.country, countryCode: rv.countryCode, label: loc.label || rv.label }); }
+  const key = `p:${origin.lat.toFixed(3)},${origin.lon.toFixed(3)}`;
+  let els = cacheGet(key);
+  if (!els) {
+    const q = r => `[out:json][timeout:12];(nwr["amenity"~"^(hospital|clinic)$"](around:${r},${origin.lat},${origin.lon});nwr["healthcare"~"^(hospital|clinic)$"](around:${r},${origin.lat},${origin.lon}););out center tags qt 80;`;
+    let data = await overpassRace(q(6000)).catch(() => null);
+    if (!data || (data.elements || []).length < 3) data = await overpassRace(q(20000)).catch(() => data); // widen only when needed
+    if (!data) throw Object.assign(new Error("hospital data servers unreachable"), { code: "osm_unreachable" });
+    els = (data.elements || []).map(e => ({ type: e.type, id: e.id, lat: e.lat, lon: e.lon, center: e.center, tags: e.tags }));
+    cacheSet(key, els);
+  }
+  const places = parseElements(els, origin, specialtyWords);
+  return { origin, places: places.slice(0, 12), country: loc.country || "", countryCode: loc.countryCode || "", label: loc.label || "" };
+}
+
+// Leaflet (open-source map library), loaded only when the map is opened
+let leafletReady = null;
+export function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  leafletReady ||= new Promise((res, rej) => {
+    const css = document.createElement("link"); css.rel = "stylesheet"; css.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.append(css);
+    const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = () => res(window.L); s.onerror = () => { leafletReady = null; rej(new Error("map library failed to load")); }; document.head.append(s);
+  });
+  return leafletReady;
 }

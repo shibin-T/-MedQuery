@@ -398,7 +398,7 @@ body.has-results .home-care{display:none}
   box-shadow:1px 1px 0 var(--card-edge),2px 2px 0 var(--card-edge),3px 3px 0 var(--card-edge),4px 4px 0 var(--card-edge),5px 5px 0 var(--card-edge),6px 6px 0 var(--card-edge),16px 20px 30px -16px rgba(10,25,40,.3);
   grid-template-columns:minmax(220px,280px) minmax(0,1fr);grid-template-areas:"h h" "sos form" "sos list";column-gap:22px;row-gap:12px;align-items:start}
 .home-care .care > h4{grid-area:h;margin:0;font-family:var(--f-display);font-size:1.3rem;font-weight:650;text-transform:none;letter-spacing:0}
-.home-care .sos-box{grid-area:sos}.home-care .care-form{grid-area:form}.home-care .care-list{grid-area:list;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
+.home-care .sos-box{grid-area:sos}.home-care .care-where{grid-area:form}.home-care .care-list{grid-area:list;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .home-care .care-list > .care-note,.home-care .care-list > a{grid-column:1/-1}
 @media (max-width:700px){.home-care .care{grid-template-columns:minmax(0,1fr);grid-template-areas:"h" "sos" "form" "list"}}
 .sos-fab{display:none!important}
@@ -536,6 +536,20 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
 .care-body{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
 .care-body > *{min-width:0}
 .care-body[hidden]{display:none}
+/* where am I: address box, map-link paste, GPS, pick on map, suggestions */
+.care-where{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;position:relative;min-width:0}
+.care-where > *{min-width:0}
+.care-locbar{display:flex;flex-wrap:wrap;gap:6px}
+.care-locbar .mini{font-size:.8rem;padding:4px 9px}
+.care-locbar .mini[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.care-hint{margin:0;font-size:.76rem;color:var(--muted)}
+.care-sugs{position:absolute;z-index:30;left:0;right:0;top:44px;margin:0;padding:4px;list-style:none;background:var(--card);border:1px solid var(--rule);border-radius:10px;box-shadow:0 12px 28px -12px rgba(0,0,0,.35)}
+.care-sugs[hidden]{display:none}
+.care-sugs button{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);font:inherit;font-size:.86rem;padding:7px 9px;border-radius:7px;cursor:pointer}
+.care-sugs button:hover,.care-sugs button:focus-visible{background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.care-map{height:260px;border-radius:10px;border:1px solid var(--rule);overflow:hidden}
+.care-map[hidden]{display:none}
+.place.is-loading{opacity:.55}
 .care.is-collapsed{gap:0}
 /* home layout moves onto the body */
 .home-care .care{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:none;row-gap:12px}
@@ -1458,7 +1472,7 @@ Sildenafil|m|pill|PDE5 inhibitor`;
   let careLoc = (() => { try { return localStorage.getItem(LOCKEY) || ""; } catch { return ""; } })();
   let careCtl = null, careFor = null, careSpec = "";
   // Address of the hosted MedQuery Care Map (set after it is published). Empty = button hidden.
-  const CARE_MAP_URL = "";
+  const CARE_MAP_URL = "https://shibin-t.github.io/-MedQuery/care-map/";
   function updateMapLink() {
     const a = document.getElementById("mapLink"); if (!a) return;
     if (!CARE_MAP_URL) { a.hidden = true; return; }
@@ -1526,9 +1540,9 @@ Sildenafil|m|pill|PDE5 inhibitor`;
   // Directions app the viewer prefers (remembered on this device)
   const MAPAPP_KEY = "medquery.mapApp";
   const MAP_APPS = {
-    google: { label: "Google Maps", url: p => "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(p.dest) },
-    apple: { label: "Apple Maps", url: p => "https://maps.apple.com/?dirflg=d&daddr=" + encodeURIComponent(p.dest) },
-    waze: { label: "Waze", url: p => "https://waze.com/ul?navigate=yes&q=" + encodeURIComponent(p.dest) },
+    google: { label: "Google Maps", url: p => "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(p.exact ? p.lat + "," + p.lon : p.dest) },
+    apple: { label: "Apple Maps", url: p => "https://maps.apple.com/?dirflg=d&daddr=" + encodeURIComponent(p.exact ? p.lat + "," + p.lon : p.dest) + (p.exact ? "&q=" + encodeURIComponent(p.name) : "") },
+    waze: { label: "Waze", url: p => p.exact ? `https://waze.com/ul?ll=${p.lat},${p.lon}&navigate=yes` : "https://waze.com/ul?navigate=yes&q=" + encodeURIComponent(p.dest) },
     osm: { label: "OpenStreetMap", url: p => p.lat != null && careOrigin ? `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${careOrigin.lat},${careOrigin.lon};${p.lat},${p.lon}` : "https://www.openstreetmap.org/search?query=" + encodeURIComponent(p.dest) }
   };
   let mapApp = (() => { try { const v = localStorage.getItem(MAPAPP_KEY); return MAP_APPS[v] ? v : ""; } catch { return ""; } })();
@@ -1543,22 +1557,145 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     phone: ["Has 24/7 number first", (a, b) => (!!b.phone - !!a.phone) || (a.km ?? 1e9) - (b.km ?? 1e9)],
     name: ["Name A–Z", (a, b) => a.name.localeCompare(b.name)]
   };
-  let careSort = "distance", carePlaces = [], careOrigin = null, careTypeTimer = null;
+  let careSort = "distance", carePlaces = [], careOrigin = null, careTypeTimer = null, careSugTimer = null, careSetPlace = null, pickMap = null, pickPin = null, pickLayer = null;
   const kmBetween = (a, b) => { const r = x => x * Math.PI / 180, dLa = r(b.lat - a.lat), dLo = r(b.lon - a.lon); const h = Math.sin(dLa / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLo / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
   const fmtKm = km => km == null ? "" : km < 1 ? "≈ " + Math.max(100, Math.round(km * 10) * 100) + " m" : "≈ " + (km < 10 ? km.toFixed(1) : Math.round(km)) + " km";
+
+  // ---------- Location from any map app ----------
+  // Accepts plain coordinates or a link copied from Google Maps, Waze, Apple Maps, OpenStreetMap,
+  // Bing, HERE, a geo: link or a Plus Code, and turns it into a latitude/longitude.
+  const COORDS_KEY = "medquery.coords";
+  let careCoords = (() => { try { const c = JSON.parse(localStorage.getItem(COORDS_KEY) || "null"); return c && isFinite(c.lat) && isFinite(c.lon) ? c : null; } catch { return null; } })();
+  function saveCoords(c) { careCoords = c; try { c ? localStorage.setItem(COORDS_KEY, JSON.stringify(c)) : localStorage.removeItem(COORDS_KEY); } catch {} }
+  const validLL = (la, lo) => isFinite(la) && isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && !(la === 0 && lo === 0);
+  function geohashDecode(h) {
+    const B = "0123456789bcdefghjkmnpqrstuvwxyz"; let even = true; const la = [-90, 90], lo = [-180, 180];
+    for (const ch of h.toLowerCase()) { const v = B.indexOf(ch); if (v < 0) return null; for (let m = 16; m; m >>= 1) { const r = even ? lo : la, mid = (r[0] + r[1]) / 2; if (v & m) r[0] = mid; else r[1] = mid; even = !even; } }
+    return { lat: (la[0] + la[1]) / 2, lon: (lo[0] + lo[1]) / 2 };
+  }
+  const OLC = "23456789CFGHJMPQRVWX";
+  function plusDecode(code) { // full Plus Code, e.g. 7J4VXHC7+2V
+    const c = code.toUpperCase().replace("+", ""); let lat = -90, lon = -180, res = 20, last = 20;
+    for (let i = 0; i + 1 < Math.min(c.length, 10); i += 2) { const a = OLC.indexOf(c[i]), b = OLC.indexOf(c[i + 1]); if (a < 0 || b < 0) return null; lat += a * res; lon += b * res; last = res; res /= 20; }
+    return { lat: lat + last / 2, lon: lon + last / 2 };
+  }
+  function plusRecover(short, ref) { // short Plus Code (e.g. XHC7+2V) near a reference point
+    const n = 8 - short.indexOf("+"); if (n <= 0 || n % 2) return null;
+    let la = ref.lat + 90, lo = ref.lon + 180, res = 20, prefix = "";
+    for (let i = 0; i < n; i += 2) { const a = Math.floor(la / res), b = Math.floor(lo / res); prefix += OLC[a] + OLC[b]; la -= a * res; lo -= b * res; if (i + 2 < n) res /= 20; }
+    const p = plusDecode(prefix + short); if (!p) return null;
+    if (p.lat - ref.lat > res / 2) p.lat -= res; else if (p.lat - ref.lat < -res / 2) p.lat += res;
+    if (p.lon - ref.lon > res / 2) p.lon -= res; else if (p.lon - ref.lon < -res / 2) p.lon += res;
+    return p;
+  }
+  // Returns { lat, lon } | { shortLink: true } | { plusShort, rest } | { text } | null
+  function parseMapLocation(raw) {
+    const t = str(raw).trim(); if (!t) return null;
+    let s = t; try { s = decodeURIComponent(t); } catch {}
+    const num = "(-?\\d{1,3}(?:\\.\\d+)?)";
+    const tryLL = (a, b) => { const la = +a, lo = +b; return validLL(la, lo) ? { lat: la, lon: lo } : null; };
+    let m;
+    if (/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)/i.test(t)) return { shortLink: true };
+    if ((m = s.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/))) return tryLL(m[1], m[2]);                      // Google place pin
+    if ((m = s.match(/waze\.com\/ul\/h([0-9b-hjkmnp-z]{5,12})/i))) return geohashDecode(m[1]);             // Waze share link
+    if ((m = s.match(/[?&#](?:mlat)=(-?\d+\.?\d*)&mlon=(-?\d+\.?\d*)/))) return tryLL(m[1], m[2]);       // OpenStreetMap marker
+    if ((m = s.match(/#map=\d+\/(-?\d+\.?\d*)\/(-?\d+\.?\d*)/))) return tryLL(m[1], m[2]);               // OpenStreetMap view
+    if ((m = s.match(/[?&]cp=(-?\d+\.?\d*)~(-?\d+\.?\d*)/))) return tryLL(m[1], m[2]);                   // Bing
+    if ((m = s.match(new RegExp("[?&](?:q|query|ll|sll|daddr|destination|center|map|coordinate|location)=" + num + "\\s*,\\s*" + num)))) return tryLL(m[1], m[2]); // Google, Apple, Waze, HERE
+    if ((m = s.match(new RegExp("/@" + num + "," + num)))) return tryLL(m[1], m[2]);                     // Google map view
+    if ((m = s.match(new RegExp("here\\.com/(?:l|p/s-[^/]*)/" + num + "," + num)))) return tryLL(m[1], m[2]); // HERE
+    if ((m = s.match(new RegExp("^geo:" + num + "," + num, "i")))) return tryLL(m[1], m[2]);
+    if ((m = s.match(/^(-?\d{1,2}\.\d+)\s*°?\s*([NS])?\s*[,;\s]\s*(-?\d{1,3}\.\d+)\s*°?\s*([EW])?$/i))) { // plain coordinates
+      let la = +m[1], lo = +m[3]; if (/s/i.test(m[2] || "")) la = -Math.abs(la); if (/w/i.test(m[4] || "")) lo = -Math.abs(lo); return tryLL(la, lo);
+    }
+    if ((m = s.match(/\b([23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,3})\b/i))) return plusDecode(m[1]);
+    if ((m = s.match(/^([23456789CFGHJMPQRVWX]{4,6}\+[23456789CFGHJMPQRVWX]{2,3})[\s,]+(.+)$/i))) return { plusShort: m[1].toUpperCase(), rest: m[2] };
+    if (/^https?:\/\//i.test(t)) { // a map link without coordinates: use the place name in it
+      if ((m = s.match(/\/maps\/place\/([^/@?]+)/)) || (m = s.match(/[?&](?:q|query|daddr|destination|address)=([^&]+)/))) return { text: m[1].replace(/\+/g, " ").trim() };
+      return { shortLink: true };
+    }
+    return null;
+  }
+  const llLabel = c => c.lat.toFixed(5) + ", " + c.lon.toFixed(5);
+
+  // Remember hospital results for each place + topic for a day, so repeat searches are instant
+  const CARE_CACHE_KEY = "medquery.careCache", CARE_TTL = 24 * 3600 * 1000;
+  const careCacheKey = topic => [careCoords ? careCoords.lat.toFixed(3) + "," + careCoords.lon.toFixed(3) : careLoc.toLowerCase(), str(topic.title).toLowerCase(), topic.kind, LANG_NOTE() ? (document.documentElement.lang || "x") : "en"].join("|");
+  function careCacheGet(k) { try { const c = JSON.parse(localStorage.getItem(CARE_CACHE_KEY) || "{}")[k]; return c && Date.now() - c.t < CARE_TTL ? c.v : null; } catch { return null; } }
+  function careCacheSet(k, v) { try { const c = JSON.parse(localStorage.getItem(CARE_CACHE_KEY) || "{}"); c[k] = { t: Date.now(), v }; for (const old of Object.keys(c).sort((a, b) => c[b].t - c[a].t).slice(30)) delete c[old]; localStorage.setItem(CARE_CACHE_KEY, JSON.stringify(c)); } catch {} }
+  // Pull finished objects out of a JSON array that is still being written, e.g. "places":[{…},{…},{…
+  function streamedObjects(text, key) {
+    const at = text.indexOf('"' + key + '"'); if (at < 0) return [];
+    let i = text.indexOf("[", at); if (i < 0) return [];
+    const out = []; let depth = 0, start = -1, inStr = false, esc = false;
+    for (i++; i < text.length; i++) {
+      const ch = text[i];
+      if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === "{") { if (!depth) start = i; depth++; }
+      else if (ch === "}") { depth--; if (!depth && start >= 0) { try { out.push(JSON.parse(text.slice(start, i + 1))); } catch {} start = -1; } }
+      else if (ch === "]" && !depth) break;
+    }
+    return out;
+  }
 
   function renderCare() {
     const host = $("#care"); if (!host) return;
     host.replaceChildren();
     const em = emergencyFor(careLoc);
     const emBox = el("div", { class: "sos-box", id: "sosBox" }); renderEmergency(emBox, em);
-    const inp = el("input", { id: "careLoc", type: "search", placeholder: "Type your area, e.g. Edappally, Kochi", value: careLoc, "aria-label": "Your area or address", autocomplete: "street-address" });
+    const inp = el("input", { id: "careLoc", type: "search", placeholder: "Type your area, or paste a map link", value: careLoc, "aria-label": "Your area, address, coordinates or a map link", autocomplete: "street-address" });
     const form = el("form", { class: "care-form" }, inp, el("button", { type: "submit", text: "Find care" }));
     const list = el("div", { class: "care-list", id: "careList", "aria-live": "polite" });
-    const go = () => { careLoc = inp.value.trim(); try { localStorage.setItem(LOCKEY, careLoc); } catch {} updateMapLink(); renderEmergency(emBox, emergencyFor(careLoc)); if (careLoc) findCare(); };
-    form.addEventListener("submit", e => { e.preventDefault(); clearTimeout(careTypeTimer); go(); });
-    // typing an area searches automatically after a short pause
-    inp.addEventListener("input", () => { clearTimeout(careTypeTimer); if (inp.value.trim().length >= 4 && inp.value.trim() !== careLoc) careTypeTimer = setTimeout(go, 1400); });
+    const sugs = el("ul", { class: "care-sugs", id: "careSugs", hidden: "", role: "listbox", "aria-label": "Suggested places" });
+    const mapBox = el("div", { class: "care-map", id: "careMap", hidden: "" });
+    const setPlace = (label, coords) => {
+      clearTimeout(careTypeTimer); sugs.hidden = true;
+      careLoc = label; inp.value = label; saveCoords(coords || null);
+      try { localStorage.setItem(LOCKEY, careLoc); } catch {}
+      updateMapLink(); renderEmergency(emBox, emergencyFor(careLoc)); if (careLoc) findCare();
+    };
+    careSetPlace = setPlace;
+    // A pasted map link or coordinates becomes an exact position; plain text is an address
+    const go = () => {
+      const v = inp.value.trim(); if (!v) return;
+      const hit = parseMapLocation(v);
+      if (hit?.shortLink) { toast("That's a short share link, which can't be opened from here. In the map app, copy the full link from the address bar, or long-press your spot and copy its coordinates."); return; }
+      if (hit && isFinite(hit.lat)) { setPlace("📍 " + llLabel(hit), { ...hit }); nameCoords(hit); return; }
+      if (hit?.plusShort) { plusFromShort(hit); return; }
+      if (hit?.text) { setPlace(hit.text, null); return; }
+      if (v === careLoc && careCoords && !careCoords.fromText) { findCare(); return; }
+      setPlace(v, null);
+    };
+    form.addEventListener("submit", e => { e.preventDefault(); go(); });
+    inp.addEventListener("paste", () => setTimeout(() => { if (parseMapLocation(inp.value)) go(); }, 0));
+    // typing an area searches automatically after a short pause; suggestions appear sooner (outside Claude)
+    inp.addEventListener("input", () => {
+      clearTimeout(careTypeTimer); clearTimeout(careSugTimer);
+      const v = inp.value.trim();
+      if (v.length >= 4 && v !== careLoc) careTypeTimer = setTimeout(go, 900);
+      if (!IN_CLAUDE && v.length >= 3 && !parseMapLocation(v)) careSugTimer = setTimeout(() => showSuggestions(v, sugs, setPlace), 220); else sugs.hidden = true;
+    });
+    inp.addEventListener("keydown", e => { if (e.key === "ArrowDown" && !sugs.hidden) { e.preventDefault(); sugs.querySelector("button")?.focus(); } if (e.key === "Escape") sugs.hidden = true; });
+    sugs.addEventListener("keydown", e => { const b = [...sugs.querySelectorAll("button")], i = b.indexOf(document.activeElement); if (e.key === "ArrowDown") { e.preventDefault(); b[Math.min(i + 1, b.length - 1)]?.focus(); } if (e.key === "ArrowUp") { e.preventDefault(); i > 0 ? b[i - 1].focus() : inp.focus(); } if (e.key === "Escape") { sugs.hidden = true; inp.focus(); } });
+    document.addEventListener("click", e => { if (!e.target.closest?.(".care-where")) sugs.hidden = true; });
+    const gps = el("button", { class: "mini", type: "button", id: "careGps" }, "📍 Use my location");
+    gps.addEventListener("click", () => {
+      if (!navigator.geolocation) { toast("Location isn't available in this browser. Type your area or paste a map link."); return; }
+      gps.textContent = "📍 Locating…";
+      navigator.geolocation.getCurrentPosition(pos => {
+        gps.textContent = "📍 Use my location";
+        const c = { lat: +pos.coords.latitude.toFixed(6), lon: +pos.coords.longitude.toFixed(6) };
+        setPlace("📍 My location (" + llLabel(c) + ")", c); nameCoords(c, "📍 Near ");
+      }, err => {
+        gps.textContent = "📍 Use my location";
+        toast(err.code === 1 ? "Location permission was blocked. Type your area or paste a link from your map app instead." : "Couldn't get your location. Type your area or paste a map link.");
+      }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 });
+    });
+    const pick = el("button", { class: "mini", type: "button", id: "carePick", "aria-pressed": "false", "aria-controls": "careMap", hidden: (() => { try { return IN_CLAUDE ? "" : null; } catch { return ""; } })() }, "🗺 Pick on map");
+    pick.addEventListener("click", () => { const on = pick.getAttribute("aria-pressed") !== "true"; pick.setAttribute("aria-pressed", String(on)); mapBox.hidden = !on; if (on) openPickMap(mapBox, setPlace); });
+    const hint = el("p", { class: "care-hint", text: "Paste a location from Google Maps, Waze, Apple Maps, OpenStreetMap, Bing, HERE, a Plus Code or plain coordinates." });
+    const where = el("div", { class: "care-where" }, form, sugs, el("div", { class: "care-locbar" }, gps, pick), hint, mapBox);
     const sortSel = el("select", { id: "careSort", "aria-label": "Sort hospitals" }); for (const [k, [label]] of Object.entries(CARE_SORTS)) sortSel.append(el("option", { value: k, text: label })); sortSel.value = careSort;
     sortSel.addEventListener("change", () => { careSort = sortSel.value; drawCareList(); });
     const appSel = el("select", { id: "careApp", "aria-label": "Open directions in" }); for (const [k, v] of Object.entries(MAP_APPS)) appSel.append(el("option", { value: k, text: v.label })); appSel.value = mapApp;
@@ -1571,7 +1708,7 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     const toggle = el("button", { class: "care-toggle", type: "button", id: "careToggle", "aria-expanded": String(!collapsed), "aria-controls": "careBody" },
       el("span", { class: "care-title", text: "Care near you" }), el("span", { class: "care-chev", "aria-hidden": "true" }));
     const quick = el("a", { class: "care-quickcall", id: "careQuickCall", href: telHref((em || ["", "112"])[1]), "aria-label": "Call emergency services " + (em || ["", "112"])[1] }, "✆ " + (em || ["", "112"])[1]);
-    const body = el("div", { class: "care-body", id: "careBody" }, emBox, form, mapLink, tools, list);
+    const body = el("div", { class: "care-body", id: "careBody" }, emBox, where, mapLink, tools, list);
     body.hidden = collapsed; host.classList.toggle("is-collapsed", collapsed);
     toggle.addEventListener("click", () => {
       const now = toggle.getAttribute("aria-expanded") === "true";
@@ -1602,6 +1739,62 @@ Sildenafil|m|pill|PDE5 inhibitor`;
           p.phone ? el("a", { class: "pa pa-call", href: telHref(p.phone), "aria-label": "Call " + p.name + " " + p.phone }, "✆ Call") : null,
           p.phone ? copyBtn(p.phone, "Copy number") : null)));
     }
+    drawPickMarkers();
+  }
+
+  // Address suggestions as you type (outside Claude; Photon / OpenStreetMap)
+  async function showSuggestions(v, sugs, setPlace) {
+    try {
+      await loadLocalModule();
+      const r = await MQL.suggest(v, careOrigin || careCoords);
+      if ($("#careLoc")?.value.trim() !== v) return;
+      sugs.replaceChildren(...r.map(x => el("li", { role: "option" }, el("button", { type: "button", text: x.label, onclick: () => setPlace(x.label, { lat: x.lat, lon: x.lon, country: x.country, fromText: true }) }))));
+      sugs.hidden = !r.length;
+    } catch { sugs.hidden = true; }
+  }
+  // Give a pasted or GPS position a readable name (outside Claude) without delaying the search
+  async function nameCoords(c, prefix = "📍 ") {
+    if (IN_CLAUDE) return;
+    try {
+      await loadLocalModule(); const r = await MQL.reverse(c.lat, c.lon);
+      if (!r || careCoords?.lat !== c.lat || careCoords?.lon !== c.lon) return;
+      const was = careLoc; careLoc = prefix + r.label.split(", ").slice(0, 3).join(", ");
+      saveCoords({ ...careCoords, country: r.country });
+      try { localStorage.setItem(LOCKEY, careLoc); } catch {}
+      const i = $("#careLoc"); if (i && (i.value === was || document.activeElement !== i)) i.value = careLoc;
+      renderEmergency($("#sosBox"), emergencyFor(careLoc, r.country));
+    } catch {}
+  }
+  async function plusFromShort(hit) {
+    if (IN_CLAUDE) { careSetPlace?.(hit.plusShort + " " + hit.rest, null); return; }
+    try { await loadLocalModule(); const ref = await MQL.geocode(hit.rest); const p = ref && plusRecover(hit.plusShort, ref);
+      if (p) { careSetPlace?.("📍 " + hit.plusShort + ", " + hit.rest, p); return; } } catch {}
+    toast("Couldn't place that Plus Code. Try the full code (8 characters before the +).");
+  }
+  // Embedded OpenStreetMap: drag the pin or tap the map to set your spot (outside Claude)
+  async function openPickMap(box, setPlace) {
+    try {
+      await loadLocalModule(); const L = await MQL.loadLeaflet();
+      const at = careOrigin || careCoords || { lat: 20.5937, lon: 78.9629 }, zoom = careOrigin || careCoords ? 14 : 4;
+      if (!pickMap || !box.contains(pickMap.getContainer())) {
+        box.replaceChildren(); const holder = el("div", { style: "height:100%" }); box.append(holder);
+        pickMap = L.map(holder, { zoomControl: true }).setView([at.lat, at.lon], zoom);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(pickMap);
+        pickLayer = L.layerGroup().addTo(pickMap);
+        pickPin = L.marker([at.lat, at.lon], { draggable: true, title: "Your location" }).addTo(pickMap);
+        const moved = ll => { const c = { lat: +ll.lat.toFixed(6), lon: +ll.lng.toFixed(6) }; pickPin.setLatLng(ll); setPlace("📍 " + llLabel(c), c); nameCoords(c); };
+        pickPin.on("dragend", () => moved(pickPin.getLatLng()));
+        pickMap.on("click", e => moved(e.latlng));
+      } else { pickMap.setView([at.lat, at.lon], Math.max(pickMap.getZoom(), zoom)); pickPin.setLatLng([at.lat, at.lon]); }
+      setTimeout(() => pickMap.invalidateSize(), 50);
+      drawPickMarkers();
+    } catch { box.replaceChildren(el("p", { class: "care-note", text: "The map couldn't load. Paste a map link or type your area instead." })); }
+  }
+  function drawPickMarkers() {
+    if (!pickMap || !window.L || $("#careMap")?.hidden) return;
+    pickLayer.clearLayers();
+    if (careOrigin) pickPin.setLatLng([careOrigin.lat, careOrigin.lon]);
+    for (const p of carePlaces) if (p.lat != null) L.circleMarker([p.lat, p.lon], { radius: 7, color: "#c0262d", weight: 2, fillOpacity: .8 }).bindTooltip(p.name).addTo(pickLayer);
   }
 
   // Outside Claude: real hospital data from OpenStreetMap, no AI needed
@@ -1609,15 +1802,16 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     try {
       await loadLocalModule();
       const words = careFor && careFor.kind !== "general" ? str(careFor.title).toLowerCase().split(/[\s(),]+/).filter(w => w.length > 4) : [];
-      const r = await MQL.findPlaces(careLoc, words);
+      const r = await MQL.findPlaces(careCoords ? { ...careCoords, label: careLoc } : careLoc, words);
       if (my !== careCtl) return;
       renderEmergency($("#sosBox"), emergencyFor(careLoc, r.country));
       careOrigin = r.origin;
+      if (r.origin && !careCoords) saveCoords({ ...r.origin, country: r.country, fromText: true });
       if (!r.origin) { list.replaceChildren(el("p", { class: "care-note", text: "Couldn't find that place. Try adding the city or country." }), mapsFallback()); return; }
       carePlaces = r.places.filter((p, i) => p.isHospital || p.er || i < 6).slice(0, 8).map(p => ({ ...p, is247: p.er }));
       careSpec = words.join(",");
       updateMapLink();
-      if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: "No hospitals or clinics are mapped within 8 km in OpenStreetMap. Try a nearby town." }), mapsFallback()); return; }
+      if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: "No hospitals or clinics are mapped within 20 km in OpenStreetMap. Try a nearby town." }), mapsFallback()); return; }
       drawCareList();
       list.append(el("p", { class: "care-note", text: "Live data from OpenStreetMap; phone numbers appear when mapped. Distances are straight-line. In an emergency, call " + ((emergencyFor(careLoc, r.country) || ["", "112"])[1]) + "." }), mapsFallback(true));
     } catch (e) {
@@ -1631,43 +1825,66 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     const topic = careFor || { title: "general and emergency medical care", kind: "general" };
     careCtl?.abort(); const my = careCtl = new AbortController();
     carePlaces = []; const tools = $("#careTools"); if (tools) tools.hidden = true;
-    list.replaceChildren(el("p", { class: "care-note", text: "Finding hospitals near " + careLoc + "…" }));
+    list.replaceChildren(el("p", { class: "care-note", text: "Finding hospitals near " + careLoc.replace(/^📍\s*/, "") + "…" }));
     await claudeCheck;
     if (!IN_CLAUDE) return findCareOSM(list, topic, my);
+    // Seen this place and topic in the last day? Show it instantly.
+    const key = careCacheKey(topic), hit = careCacheGet(key);
+    if (hit) { applyCareResult(hit, list, true); return; }
     const s = await getSample();
-    if (!s) { list.replaceChildren(mapsFallback()); return; }
-    const what = topic.kind === "general" ? "major hospitals with a 24-hour emergency department" : topic.kind === "test" ? "labs or diagnostic centres that do this test (or hospitals with one)" : topic.kind === "drug" ? "hospitals or clinics whose specialists prescribe and monitor this medicine" : "hospitals or clinics that treat this";
+    if (!s || my !== careCtl) { if (!s) list.replaceChildren(mapsFallback()); return; }
+    const what = topic.kind === "general" ? "major hospitals with a 24-hour emergency department" : topic.kind === "test" ? "labs or diagnostic centres that do this test (or hospitals with one)" : topic.kind === "drug" ? "hospitals or clinics whose specialists prescribe and monitor this medicine" : topic.kind === "auto" ? "hospitals, clinics or labs most relevant to this search" : "hospitals or clinics that treat this";
+    const where = careCoords ? `at latitude ${careCoords.lat}, longitude ${careCoords.lon}` + (careLoc && !/^📍\s*-?\d/.test(careLoc) ? ` ("${careLoc.replace(/^📍\s*/, "").slice(0, 100)}")` : "") : `at "${careLoc.slice(0, 120)}"`;
+    if (careCoords) careOrigin = { lat: careCoords.lat, lon: careCoords.lon };
+    let shown = 0;
     try {
-      const res = await s.json(`A user is at "${careLoc.slice(0, 120)}" and searched a medical reference for "${topic.title.slice(0, 100)}" (kind: ${topic.kind}). List up to 6 REAL, well-established ${what}, the nearest to that location first. Only include places you are confident exist. Never invent a facility, address, coordinates or phone number.
-For each give: full street address; approximate latitude/longitude of the facility; and a phone number ONLY if you are highly confident it is an active line answered 24/7 (emergency, casualty or main 24-hour helpline), else "". Also estimate the latitude/longitude of the user's typed location.
-Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility names and addresses as written locally.)" : ""}: {"origin": {"lat": 0, "lon": 0, "certain": true}, "country": "", "emergency": {"general": "", "ambulance": ""}, "places": [{"name": "", "address": "full street address with area and city", "lat": 0, "lon": 0, "phone24": "", "phoneLabel": "e.g. emergency, casualty, helpline", "emergency24h": true, "sector": "government|private|trust|unknown", "beds": 0, "specialtyMatch": true, "department": "relevant department"}], "note": "one short caution if the location is unclear, else ''"}`, { modelTier: "default", signal: my.signal, cache: { gcTime: 6 * 3600 * 1000 } });
-      if (my !== careCtl) return;
-      const em = emergencyFor(careLoc, res?.country) || (str(res?.emergency?.general) && /^[\d+]{2,6}$/.test(str(res.emergency.general)) ? [str(res.country) || "your area", str(res.emergency.general), str(res.emergency.ambulance) || str(res.emergency.general)] : null);
-      renderEmergency($("#sosBox"), em);
-      const okLL = (la, lo) => isFinite(la) && isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180 && !(la === 0 && lo === 0);
-      const o = res?.origin; careOrigin = o && okLL(+o.lat, +o.lon) ? { lat: +o.lat, lon: +o.lon } : null;
-      carePlaces = arr(res?.places).filter(p => str(p.name)).slice(0, 6).map(p => {
-        const lat = +p.lat, lon = +p.lon, has = okLL(lat, lon);
-        const phone = str(p.phone24).replace(/[^\d+\-\s()]/g, "").trim();
-        return { name: str(p.name), address: str(p.address), lat: has ? lat : null, lon: has ? lon : null,
-          km: has && careOrigin ? kmBetween(careOrigin, { lat, lon }) : null,
-          phone: phone.replace(/\D/g, "").length >= 3 ? phone : "", phoneLabel: str(p.phoneLabel),
-          er: !!p.emergency24h, gov: str(p.sector) === "government", priv: str(p.sector) === "private", beds: +p.beds || 0, match: !!p.specialtyMatch,
-          department: str(p.department), dest: [str(p.name), str(p.address)].filter(Boolean).join(", ") };
+      const res = await s.json(`A user ${where} searched a medical reference for "${topic.title.slice(0, 100)}". List up to 5 REAL, well-established ${what}, nearest first. Only places you are confident exist; never invent a facility, address, coordinates or phone number. phone24 only if you are highly confident it is an active line answered 24/7 (emergency/casualty/24-hour helpline), else "".
+Reply with ONLY JSON, keys in this order${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep names and addresses as written locally.)" : ""}: {"origin":{"lat":0,"lon":0},"country":"","emergency":{"general":"","ambulance":""},"places":[{"name":"","address":"street, area, city","lat":0,"lon":0,"phone24":"","phoneLabel":"emergency|casualty|helpline","emergency24h":true,"sector":"government|private|trust|unknown","beds":0,"specialtyMatch":true,"department":""}],"note":"short caution if the location is unclear, else ''"}`, {
+        modelTier: "default", signal: my.signal, cache: { gcTime: 6 * 3600 * 1000 },
+        // Show each hospital as soon as it has been written, instead of waiting for all of them
+        onText: ({ text }) => {
+          if (my !== careCtl) return;
+          const done = streamedObjects(text, "places"); if (done.length <= shown) return;
+          shown = done.length;
+          if (!careOrigin) { const m = text.match(/"origin"\s*:\s*\{[^}]*?"lat"\s*:\s*(-?[\d.]+)\s*,\s*"lon"\s*:\s*(-?[\d.]+)/); if (m && validLL(+m[1], +m[2])) careOrigin = { lat: +m[1], lon: +m[2] }; }
+          carePlaces = done.map(toCarePlace).filter(Boolean); drawCareList();
+          list.append(el("p", { class: "care-note", text: "Finding more…" }));
+        }
       });
-      careSpec = careFor && careFor.kind !== "general" ? [...new Set(carePlaces.map(p => p.department.toLowerCase()).filter(d => d && !/general|emergency|internal/.test(d)))].join(",") : "";
-      updateMapLink();
-      if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: str(res?.note) || "No well-known hospital found for that area. Try a nearby city name." }), mapsFallback()); return; }
-      drawCareList();
-      list.append(el("p", { class: "care-note", text: (str(res?.note) ? str(res.note) + " " : "") + "Distances are approximate. Suggested from general knowledge, not a live directory: confirm numbers before relying on them. In an emergency, call " + ((em || ["", "112"])[1]) + "." }), mapsFallback(true));
+      if (my !== careCtl) return;
+      careCacheSet(key, res);
+      applyCareResult(res, list, false);
     } catch (e) {
-      if (e?.code === "cancelled") return;
+      if (e?.code === "cancelled" || my !== careCtl) return;
+      if (shown) { const n = list.querySelector(".care-note:last-child"); if (n) n.textContent = "The list stopped early. Confirm numbers before relying on them."; return; }
       list.replaceChildren(el("p", { class: "care-note", text: e?.code === "not_granted" ? "Claude access was not allowed, so suggestions can't be shown." : "Couldn't load hospitals. Use the map search instead." }), mapsFallback());
     }
   }
+  function toCarePlace(p) {
+    if (!str(p?.name)) return null;
+    const lat = +p.lat, lon = +p.lon, has = validLL(lat, lon);
+    const phone = str(p.phone24).replace(/[^\d+\-\s()]/g, "").trim();
+    return { name: str(p.name), address: str(p.address), lat: has ? lat : null, lon: has ? lon : null,
+      km: has && careOrigin ? kmBetween(careOrigin, { lat, lon }) : null,
+      phone: phone.replace(/\D/g, "").length >= 3 ? phone : "", phoneLabel: str(p.phoneLabel),
+      er: !!p.emergency24h, gov: str(p.sector) === "government", priv: str(p.sector) === "private", beds: +p.beds || 0, match: !!p.specialtyMatch,
+      department: str(p.department), dest: [str(p.name), str(p.address)].filter(Boolean).join(", ") };
+  }
+  function applyCareResult(res, list, fromCache) {
+    const em = emergencyFor(careLoc, res?.country) || (str(res?.emergency?.general) && /^[\d+]{2,6}$/.test(str(res.emergency.general)) ? [str(res.country) || "your area", str(res.emergency.general), str(res.emergency.ambulance) || str(res.emergency.general)] : null);
+    renderEmergency($("#sosBox"), em);
+    const o = res?.origin;
+    careOrigin = careCoords ? { lat: careCoords.lat, lon: careCoords.lon } : o && validLL(+o.lat, +o.lon) ? { lat: +o.lat, lon: +o.lon } : null;
+    carePlaces = arr(res?.places).slice(0, 6).map(toCarePlace).filter(Boolean);
+    careSpec = careFor && careFor.kind !== "general" ? [...new Set(carePlaces.map(p => p.department.toLowerCase()).filter(d => d && !/general|emergency|internal/.test(d)))].join(",") : "";
+    updateMapLink();
+    if (!carePlaces.length) { list.replaceChildren(el("p", { class: "care-note", text: str(res?.note) || "No well-known hospital found for that area. Try a nearby city name." }), mapsFallback()); return; }
+    drawCareList();
+    list.append(el("p", { class: "care-note", text: (str(res?.note) ? str(res.note) + " " : "") + (fromCache ? "Saved from your search earlier today. " : "") + "Distances are approximate. Suggested from general knowledge, not a live directory: confirm numbers before relying on them. In an emergency, call " + ((em || ["", "112"])[1]) + "." }), mapsFallback(true));
+  }
   function mapsFallback(small) {
     const term = careFor ? (careFor.kind === "test" ? careFor.title + " lab" : careFor.title + " hospital") : "hospital";
-    return el("a", { class: small ? "care-more" : "mini", href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(term + " near " + careLoc), target: "_blank", rel: "noopener", text: "See more on Google Maps ↗" });
+    return el("a", { class: small ? "care-more" : "mini", href: "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(term + " near " + (careCoords ? careCoords.lat + "," + careCoords.lon : careLoc)), target: "_blank", rel: "noopener", text: "See more on Google Maps ↗" });
   }
   function setCareTopic(d) { careFor = d ? { title: str(d.title), kind: str(d.kind) } : null; placeCare(); renderCare(); if (careLoc) findCare(); }
   // One "Care near you" panel: under the search bar on the home page, in the side column with an answer
@@ -1736,7 +1953,7 @@ Reply with ONLY JSON${LANG_NOTE() ? " (" + LANG_NOTE().trim() + " Keep facility 
     }, 350);
   });
 
-  placeCare(); renderCare(); if (careLoc) findCare();
+  placeCare(); renderCare(); if (careLoc) setTimeout(findCare, 0); // after the rest of the script has loaded
 
   // ---------- Translate: whole-page language support ----------
   const LANGS = [["en","English","English"],["hi","Hindi","हिन्दी"],["bn","Bengali","বাংলা"],["te","Telugu","తెలుగు"],["mr","Marathi","मराठी"],["ta","Tamil","தமிழ்"],["ur","Urdu","اردو"],["gu","Gujarati","ગુજરાતી"],["kn","Kannada","ಕನ್ನಡ"],["ml","Malayalam","മലയാളം"],["or","Odia","ଓଡ଼ିଆ"],["pa","Punjabi","ਪੰਜਾਬੀ"],["as","Assamese","অসমীয়া"],["mai","Maithili","मैथिली"],["sa","Sanskrit","संस्कृतम्"],["ks","Kashmiri","कॉशुर"],["ne","Nepali","नेपाली"],["sd","Sindhi","سنڌي"],["kok","Konkani","कोंकणी"],["doi","Dogri","डोगरी"],["mni","Manipuri (Meitei)","ꯃꯤꯇꯩꯂꯣꯟ"],["sat","Santali","ᱥᱟᱱᱛᱟᱲᱤ"],["brx","Bodo","बड़ो"],["si","Sinhala","සිංහල"],["dv","Dhivehi","ދިވެހި"],
@@ -2264,7 +2481,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     chip.replaceChildren(el("span", { class: "eng-dot", "aria-hidden": "true" }), el("span", { text: "On-device AI: " + (st.engine === "ollama" ? "Ollama · " + (st.ollamaModel || "not set") : (MQL.BROWSER_MODELS.find(m => m.id === st.model)?.label.split(" (")[0] || "choose a model")) }));
     chip.setAttribute("aria-label", "AI engine settings");
   }
-  claudeCheck.then(inClaude => inClaude ? null : loadLocalModule()).then(async () => { if (IN_CLAUDE || !MQL) return; const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); } updateEngineChip(); }).catch(() => {});
+  claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; } return inClaude ? null : loadLocalModule(); }).then(async () => { if (IN_CLAUDE || !MQL) return; const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); } updateEngineChip(); }).catch(() => {});
 
   async function run(q, opts2 = {}) {
     q = str(q); if (!q) return;
@@ -2278,6 +2495,8 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     const ui = renderLoading(q, opts2.detail);
     if (opts2.detail !== undefined) $("#results").scrollIntoView({ behavior: "smooth", block: "start" });
 
+    // Start "Care near you" now, alongside the answer, instead of after it
+    if (!opts2.context && !opts2.keepMode && opts2.detail === undefined) { careFor = { title: q, kind: mode !== "auto" ? mode : "auto", fromQuery: q }; renderCare(); if (careLoc) findCare(); }
     const s = await getSample();
     if (!s) { ui.done(); renderError("Answers are off in this view", IN_CLAUDE ? "MedQuery writes answers with Claude, which isn't available in this view. You can still use the reference links." : "The on-device AI couldn't start in this browser. Try a recent Chrome or Edge, or choose Ollama in AI engine settings.", q); return; }
     try {
@@ -2309,7 +2528,8 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       if (myCtl !== ctl) return;
       if (!d || typeof d !== "object" || !str(d.summary)) throw { code: "invalid_json" };
       registerAI(d); current = d; renderReport(d, q, !!opts2.detail);
-      if (!opts2.context && !opts2.keepMode) setCareTopic(d); else if (!careFor) setCareTopic(d);
+      if (careFor?.fromQuery === q) { careFor = { title: str(d.title) || q, kind: str(d.kind), fromQuery: q }; updateMapLink(); } // already searching
+      else if (!opts2.context && !opts2.keepMode) setCareTopic(d); else if (!careFor) setCareTopic(d);
       if (!opts2.context && str(d.title)) renderSources(str(d.title));
     } catch (e) {
       ui.done();

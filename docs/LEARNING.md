@@ -117,3 +117,20 @@ This change was published to the live site from another session, so it existed o
 6. **Feature detection.** `webgpuStatus()` checks what the browser can do before trying, and explains the alternative (Ollama) if it can't.
 
 **Try it:** after enabling GitHub Pages (see the README), open the site, search "dengue fever", accept the download, and compare the answer and its source links with the Claude version.
+
+### Commit: "Make Care near you faster and accept locations from any map app"
+**The problem:** hospitals appeared only after the whole answer had finished, and then only once every hospital had been written out.
+
+**What changed (and the idea behind each):**
+1. **Do slow things at the same time (concurrency).** The hospital search now starts the moment you press Search, alongside the answer, instead of waiting for it. Two `await`s one after another add their waiting times together; starting both first and then waiting means you only wait for the slower one.
+2. **Streaming.** Inside Claude, the hospital list arrives as text bit by bit. `streamedObjects()` scans that half-finished JSON, counting `{` and `}` (while ignoring braces inside quoted text), and pulls out each hospital the moment its closing `}` arrives. The first hospital now shows within about a second.
+3. **Caching.** Results are remembered in `localStorage` for a day, keyed by place + topic. A repeat search shows instantly and costs nothing. A cache needs two rules: when an entry expires (24 hours) and how many to keep (30), or it grows forever.
+4. **Racing servers.** On GitHub Pages, hospital data comes from OpenStreetMap's Overpass servers, which are sometimes slow. `overpassRace()` asks three servers at once with `Promise.any` and uses the first answer, then cancels the others with an `AbortController`.
+5. **Search small, widen only if needed.** Look within 6 km first; only if fewer than 3 places come back, look within 20 km. Small queries return much faster.
+6. **Skip work you don't need.** If you paste a map link, use GPS or drop a pin, we already have exact coordinates, so the address lookup step is skipped.
+
+**Locations from any map app:** `parseMapLocation()` reads coordinates out of links from Google Maps, Waze (including its short "geohash" links), Apple Maps, OpenStreetMap, Bing and HERE, `geo:` links, Plus Codes and plain "lat, lon". It's a good example of **regular expressions** (the `/…/` patterns): small search patterns that find a shape of text, like "`@` then a number, a comma, another number".
+
+**Also fixed:** with a saved location, the hospital list didn't load when the page first opened. The code asked "are we inside Claude?" before the line that sets up that check had run. JavaScript's `const` and `let` can't be used before their line runs (the "temporal dead zone"); deferring the call with `setTimeout(findCare, 0)` lets the rest of the script load first.
+
+**Lesson:** for speed, measure where the waiting happens first. Here almost all the time was waiting on the network or the AI, so the fixes were about waiting *less often* (cache), waiting *in parallel* (concurrency, racing) and *showing results sooner* (streaming), not about faster code.
