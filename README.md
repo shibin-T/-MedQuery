@@ -8,7 +8,8 @@ A smart search engine for medical questions. One search bar for diseases and the
 
 | Folder | What it is | Where it runs |
 |---|---|---|
-| [`site/`](site/) | The MedQuery app: `index.html` (the whole page) and `local-ai.js` (the free on-device AI). | **Inside Claude:** answers come from Claude. **Anywhere else** (e.g. GitHub Pages): answers come from an AI running free on the visitor's own device. |
+| [`site/`](site/) | The MedQuery website: `index.html` (the whole page), `local-ai.js` (the free on-device AI) and `medquery-core.js` (article lookup, hospital ranking and prompts, shared with the app). | **Inside Claude:** answers come from Claude. **Anywhere else** (e.g. GitHub Pages): answers come from an AI running free on the visitor's own device. |
+| [`app/`](app/) | **MedQuery app** for iPhone, Android and the web, built with React Native (Expo). See [`app/README.md`](app/README.md). | Phones and tablets (Expo Go or an app build), and any browser. Answers come from Claude (your API key) or Ollama. |
 | [`care-map/`](care-map/) | MedQuery Care Map: a live street map of nearby hospitals and clinics, sorted nearest first. | Any static web host, such as GitHub Pages. Uses OpenStreetMap; needs no Claude and no API keys. |
 | [`docs/`](docs/) | Notes, including [`LEARNING.md`](docs/LEARNING.md), a beginner's guide to Git, GitHub and the code in this project. | Read on GitHub. |
 
@@ -19,6 +20,8 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Diseases:** definition, symptoms, causes, tests to confirm, safe home remedies with allergen warnings, prevention, treatments with how each medicine is given and rough costs.
 - **Tests:** every element measured with normal values, and a box for age, sex and pregnancy to get personal ranges.
 - **Report scanner:** upload or paste a lab report (image or PDF). Personal details are skipped; each value gets a card showing how far it is from normal, what it means, and possible inferences.
+- **Verify at the source:** the real articles behind each answer, each linking straight to the article: MedlinePlus, StatPearls (NCBI Bookshelf), Cochrane reviews, open-access guidelines and systematic reviews in PubMed Central, and FDA labels on DailyMed.
+- **Best Care for {condition}:** enter your location (or use your current one) to see the hospitals best suited to the condition you searched, with directions and phone numbers. Calls ask your permission first.
 - **Care near you:** nearby hospitals sorted by distance, directions in your map app, and copy and call buttons for 24/7 numbers, plus a one-tap emergency button.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
 
@@ -56,4 +59,4 @@ Small on-device models are less reliable than Claude, especially in Indian langu
 
 ## Licence
 
-[MIT](LICENSE). The project uses [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), [WebLLM](https://github.com/mlc-ai/web-llm) (Apache-2.0), [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), open models such as Qwen under their own licences, Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).
+[MIT](LICENSE). The project uses [React Native](https://reactnative.dev) and [Expo](https://expo.dev) (MIT), the [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (MIT), [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), [WebLLM](https://github.com/mlc-ai/web-llm) (Apache-2.0), [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), open models such as Qwen under their own licences, Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).

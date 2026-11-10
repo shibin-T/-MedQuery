@@ -18,6 +18,9 @@
 // Europe PMC open-access research) and tell the model to answer only from them.
 // ---------------------------------------------------------------------------
 
+import { parseJSONLoose, ground, answerPrompt, reportPrompt, geocode, placesAround } from "./medquery-core.js";
+export { parseJSONLoose, ground, answerPrompt, reportPrompt, findArticles, findBestCare, specialtyFor } from "./medquery-core.js";
+
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.87";
 const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
 const SETTINGS_KEY = "medquery.localAI";
@@ -54,19 +57,6 @@ export async function webgpuStatus() {
     if (!adapter) return { ok: false, reason: "No compatible graphics chip was found. Try Chrome or Edge, or switch to Ollama." };
     return { ok: true, f16: adapter.features.has("shader-f16") };
   } catch (e) { return { ok: false, reason: "WebGPU couldn't start: " + (e?.message || e) }; }
-}
-
-// ---------- robust JSON from a small model ----------
-export function parseJSONLoose(text) {
-  let t = String(text || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  t = t.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  try { return JSON.parse(t); } catch {}
-  const a = t.indexOf("{"), b = t.lastIndexOf("}");
-  const a2 = t.indexOf("["), b2 = t.lastIndexOf("]");
-  const pick = (a >= 0 && (a2 < 0 || a < a2)) ? t.slice(a, b + 1) : a2 >= 0 ? t.slice(a2, b2 + 1) : "";
-  if (!pick) throw Object.assign(new Error("no JSON in reply"), { code: "invalid_json", text: t });
-  const repaired = pick.replace(/,\s*([}\]])/g, "$1").replace(/[“”]/g, '"');
-  try { return JSON.parse(repaired); } catch { throw Object.assign(new Error("bad JSON"), { code: "invalid_json", text: t }); }
 }
 
 // ---------- engines ----------
@@ -171,117 +161,6 @@ export async function getSampler(hooks = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// GROUNDING: look things up in free official sources before answering
-// ---------------------------------------------------------------------------
-const clip = (s, n) => { s = String(s || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : s; };
-async function getJSON(url, ms = 9000) {
-  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-  try { const r = await fetch(url, { signal: ctl.signal, headers: { Accept: "application/json" } }); if (!r.ok) throw new Error(r.status); return await r.json(); }
-  finally { clearTimeout(t); }
-}
-// MedlinePlus Connect returns plain-language summaries for a code (ICD-10, LOINC or RxNorm)
-const CODE_SYSTEMS = { icd10: "2.16.840.1.113883.6.90", loinc: "2.16.840.1.113883.6.1", rxnorm: "2.16.840.1.113883.6.88" };
-async function medlinePlus(system, code) {
-  const url = `https://connect.medlineplus.gov/service?mainSearchCriteria.v.cs=${CODE_SYSTEMS[system]}&mainSearchCriteria.v.c=${encodeURIComponent(code)}&knowledgeResponseType=application/json`;
-  const j = await getJSON(url);
-  return (j?.feed?.entry || []).slice(0, 2).map(e => ({
-    source: "MedlinePlus (US National Library of Medicine)", title: e.title?._value || "MedlinePlus",
-    url: e.link?.[0]?.href || "https://medlineplus.gov", year: "", text: clip(e.summary?._value, 1600)
-  }));
-}
-async function groundDisease(term) {
-  const j = await getJSON(`https://clinicaltables.nlm.nih.gov/api/conditions/v3/search?terms=${encodeURIComponent(term)}&df=primary_name&ef=icd10cm_codes&maxList=3`);
-  const codes = (j?.[2]?.icd10cm_codes || []).map(c => String(c).split(",")[0]).filter(Boolean);
-  const name = j?.[3]?.[0]?.[0] || term;
-  for (const c of codes) { try { const r = await medlinePlus("icd10", c); if (r.length) return { name, items: r }; } catch {} }
-  return { name, items: [] };
-}
-async function groundTest(term) {
-  const j = await getJSON(`https://clinicaltables.nlm.nih.gov/api/loinc_items/v3/search?terms=${encodeURIComponent(term)}&df=LOINC_NUM,text&maxList=3`);
-  const codes = (j?.[3] || []).map(r => r[0]).filter(Boolean);
-  for (const c of codes) { try { const r = await medlinePlus("loinc", c); if (r.length) return { items: r }; } catch {} }
-  return { items: [] };
-}
-async function groundDrug(term) {
-  const items = [];
-  try {
-    const rx = await getJSON(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(term)}&search=2`);
-    const id = rx?.idGroup?.rxnormId?.[0]; if (id) items.push(...await medlinePlus("rxnorm", id));
-  } catch {}
-  try {
-    const q = encodeURIComponent(`openfda.generic_name:"${term}"+openfda.brand_name:"${term}"`);
-    const j = await getJSON(`https://api.fda.gov/drug/label.json?search=${q}&limit=1`);
-    const L = j?.results?.[0];
-    if (L) {
-      const f = k => clip((L[k] || []).join(" "), 420);
-      const route = (L.openfda?.route || []).join(", ");
-      items.push({ source: "openFDA drug label (US FDA)", title: (L.openfda?.brand_name?.[0] || term) + " label",
-        url: "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=" + encodeURIComponent(term), year: "",
-        text: [route && "Route: " + route, f("indications_and_usage") && "Uses: " + f("indications_and_usage"), f("dosage_and_administration") && "How it is given: " + f("dosage_and_administration"),
-          (f("warnings_and_cautions") || f("warnings")) && "Warnings: " + (f("warnings_and_cautions") || f("warnings")), f("contraindications") && "Do not use: " + f("contraindications"),
-          f("adverse_reactions") && "Side effects: " + f("adverse_reactions"), f("drug_interactions") && "Interactions: " + f("drug_interactions")].filter(Boolean).join("\n") });
-    }
-  } catch {}
-  return { items };
-}
-async function groundResearch(term) {
-  const q = encodeURIComponent(`(TITLE_ABS:"${term}") AND OPEN_ACCESS:y AND (PUB_TYPE:"review" OR PUB_TYPE:"systematic-review" OR PUB_TYPE:"practice-guideline")`);
-  const j = await getJSON(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${q}&format=json&resultType=core&pageSize=2&sort=CITED%20desc`);
-  return (j?.resultList?.result || []).filter(r => r.abstractText).map(r => ({
-    source: (r.journalInfo?.journal?.title || r.journalTitle || "Open-access journal") + " (via Europe PMC)", title: clip(r.title, 160),
-    url: r.pmcid ? `https://europepmc.org/article/PMC/${r.pmcid}` : `https://europepmc.org/article/${r.source}/${r.id}`,
-    year: String(r.pubYear || ""), text: clip(r.abstractText, 900)
-  }));
-}
-
-// Gather sources for a query. Returns { sources:[{source,title,url,year,text}], context } (context fits a small model)
-export async function ground(term, kind) {
-  const tasks = [];
-  if (kind === "drug") tasks.push(groundDrug(term).then(r => r.items));
-  else if (kind === "test") tasks.push(groundTest(term).then(r => r.items));
-  else tasks.push(groundDisease(term).then(r => r.items));
-  tasks.push(groundResearch(term));
-  const results = await Promise.allSettled(tasks);
-  const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 4);
-  let budget = 5200;
-  const context = sources.map((s, i) => {
-    const t = s.text.slice(0, Math.max(300, Math.floor(budget / sources.length)));
-    return `[S${i + 1}] ${s.source} — ${s.title}${s.year ? " (" + s.year + ")" : ""}\n${t}`;
-  }).join("\n\n");
-  return { sources, context };
-}
-
-// Compact prompts for small models (≈4k-token window): one kind at a time, fewer fields
-const KIND_SCHEMA = {
-  disease: `"definition":"1-2 plain sentences","symptoms":{"common":["..."],"uncommon":["..."]},"causes":["..."],"tests":[{"name":"","why":""}],"homeRemedies":{"applicable":true or false (true only for simple self-limiting illnesses),"note":"","items":[{"name":"","how":"","allergens":["common allergens in it, or empty"]}]},"prevention":["..."],"treatments":[{"option":"","route":"how a medicine is given, e.g. Oral tablet; '' if not a medicine","note":""}]`,
-  test: `"purpose":"","specimen":"","preparation":"","components":[{"name":"","normal":"typical adult range","unit":"","depends":true or false}],"factors":["age","sex","pregnancy","fasting" (only those that change the ranges)],"highLow":[{"finding":"","meaning":""}]`,
-  drug: `"drug":{"class":"","howItWorks":"","administration":{"routes":["e.g. Oral tablet"],"how":"how and when it is taken, no personal doses"},"uses":["..."],"commonSideEffects":["..."],"seriousSideEffects":["..."],"cautions":["..."],"interactions":["..."]}`,
-  question: `"answer":"direct plain answer","points":["..."]`
-};
-export function answerPrompt({ q, kind, context, detail, langNote, followUp }) {
-  const size = detail ? "DETAILED: lists up to 6 items, 1 sentence each; add 2-3 'details' sections." : "QUICK: very short and simple, lists of 3-4 short phrases, 'details': [].";
-  return `SOURCES (free official and open-access references):
-${context || "(No sources could be retrieved.)"}
-
-TASK: Answer the medical query "${q.slice(0, 300)}"${followUp ? ` as a follow-up to "${followUp}"` : ""}. It is a ${kind}.
-RULES: Use ONLY facts stated in the SOURCES. If the sources do not cover a field, leave it empty ("" or []) rather than guessing. Plain language for non-medical readers. Never give personal doses. Name any medicine with how it is given. If the sources are missing or thin, set "confidence":"low" and explain in "uncertainty". ${size}${langNote || ""}
-Reply with ONE JSON object:
-{"kind":"${kind}","title":"","aka":[],"summary":"1-2 sentences","urgent":"warning signs needing urgent care, or ''",${KIND_SCHEMA[kind] || KIND_SCHEMA.question},"details":[],"confidence":"high|moderate|low","uncertainty":"","needsResearch":false,"related":["3-5 related searches"]}`;
-}
-export function reportPrompt(text, langNote) {
-  return `LAB REPORT TEXT (recognised from an uploaded report; may contain personal details and recognition errors):
-"""${String(text).slice(0, 7000)}"""
-
-TASK: Extract ONLY the laboratory test results and explain each in plain language.
-PRIVACY: never output names, ages, IDs, phone numbers, addresses, dates, doctor or lab names.
-Use the reference range printed in the text; if none, use a widely accepted adult range and set "rangeSource":"standard". If the text is not a lab report or values are unreadable, return {"readable":false,"reason":"..."}.
-Status: normal, borderline_low/high (within ~10% outside the range), low/high, critical_low/high (far outside or dangerous), unknown.
-Keep "meaning" and "inference" under 20 words each. Possible diagnoses are possibilities, not diagnoses.${langNote || ""}
-Reply with ONE JSON object:
-{"readable":true,"reportType":"","summary":"2 plain sentences","urgent":"","results":[{"test":"","value":"","unit":"","range":"","rangeSource":"report|standard","status":"","meaning":"","inference":"","readCertain":true}],"patterns":[],"possibleDiagnoses":[{"name":"","likelihood":"likely|possible|less likely","why":"","confirm":""}],"nextSteps":[],"caveat":"","confidence":"high|moderate|low"}`;
-}
-
-// ---------------------------------------------------------------------------
 // On-device text recognition (OCR) for report photos and scanned PDFs
 // ---------------------------------------------------------------------------
 let ocrWorker = null;
@@ -295,42 +174,16 @@ export async function ocr(blobs, onProgress) {
 }
 
 // ---------------------------------------------------------------------------
-// Care near you from OpenStreetMap (no AI needed): geocode, then nearby hospitals
+// Care near you from OpenStreetMap (no AI needed): nearest hospitals and clinics
+// (the condition-specific "Best Care" ranking lives in medquery-core.js)
 // ---------------------------------------------------------------------------
-let lastNominatim = 0;
-async function nominatim(path) {
-  const wait = Math.max(0, lastNominatim + 1100 - Date.now()); if (wait) await new Promise(r => setTimeout(r, wait));
-  lastNominatim = Date.now();
-  return getJSON("https://nominatim.openstreetmap.org" + path + "&accept-language=" + encodeURIComponent(navigator.language || "en"), 12000);
-}
-const R = 6371, rad = d => d * Math.PI / 180;
-const kmBetween = (a, b) => { const dLa = rad(b.lat - a.lat), dLo = rad(b.lon - a.lon); const h = Math.sin(dLa / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
 export async function findPlaces(locText, specialtyWords = []) {
-  const g = await nominatim("/search?format=jsonv2&addressdetails=1&limit=1&q=" + encodeURIComponent(locText));
-  if (!g?.length) return { origin: null, places: [], countryCode: "", country: "" };
-  const origin = { lat: +g[0].lat, lon: +g[0].lon }, countryCode = g[0].address?.country_code || "", country = g[0].address?.country || "";
-  const q = `[out:json][timeout:25];(nwr["amenity"~"^(hospital|clinic)$"](around:8000,${origin.lat},${origin.lon});nwr["healthcare"~"^(hospital|clinic)$"](around:8000,${origin.lat},${origin.lon}););out center tags 200;`;
-  let data = null;
-  for (const url of ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"]) {
-    try { const r = await fetch(url, { method: "POST", body: "data=" + encodeURIComponent(q), headers: { "Content-Type": "application/x-www-form-urlencoded" } }); if (r.ok) { data = await r.json(); break; } } catch {}
-  }
-  const seen = new Set(), places = [];
-  for (const e of data?.elements || []) {
-    const t = e.tags || {}, lat = e.lat ?? e.center?.lat, lon = e.lon ?? e.center?.lon, name = t["name:en"] || t.name;
-    if (lat == null || !name) continue;
-    const key = name.toLowerCase() + Math.round(lat * 1000); if (seen.has(key)) continue; seen.add(key);
-    const addr = t["addr:full"] || [t["addr:housenumber"] && t["addr:street"] ? t["addr:housenumber"] + " " + t["addr:street"] : t["addr:street"], t["addr:suburb"], t["addr:city"], t["addr:postcode"]].filter(Boolean).join(", ");
-    const op = ((t["operator:type"] || "") + " " + (t.operator || "")).toLowerCase();
-    const specs = (t["healthcare:speciality"] || "").toLowerCase();
-    const isHospital = (t.amenity || t.healthcare) === "hospital";
-    places.push({
-      name, address: addr, lat, lon, km: kmBetween(origin, { lat, lon }),
-      phone: (t["contact:phone"] || t.phone || "").split(/[;,]/)[0].trim(), phoneLabel: t.emergency === "yes" ? "emergency" : "main line",
-      er: t.emergency === "yes", gov: /public|government|govt|municipal|district|state|national/.test(op), priv: /private|commercial/.test(op),
-      beds: parseInt(t.beds, 10) || 0, match: specialtyWords.some(w => specs.includes(w) || name.toLowerCase().includes(w)),
-      department: specs.split(";")[0] || "", dest: [name, addr].filter(Boolean).join(", "), isHospital
-    });
-  }
+  const o = await geocode(locText, { lang: navigator.language || "en" });
+  if (!o) return { origin: null, places: [], countryCode: "", country: "" };
+  const places = (await placesAround(o, { radiusM: 8000 })).map(p => ({
+    ...p, phoneLabel: p.er ? "emergency" : "main line", department: p.specialities[0] || "",
+    match: specialtyWords.some(w => p.specialities.join(" ").includes(w) || p.name.toLowerCase().includes(w))
+  }));
   places.sort((a, b) => a.km - b.km);
-  return { origin, places: places.slice(0, 12), countryCode, country, label: g[0].display_name || locText };
+  return { origin: { lat: o.lat, lon: o.lon }, places: places.slice(0, 12), countryCode: o.countryCode, country: o.country, label: o.label };
 }

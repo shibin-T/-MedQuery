@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "MedQuery",
+    "slug": "medquery",
+    "version": "1.0.0",
+    "scheme": "medquery",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.medquery.app",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["tel", "comgooglemaps", "waze"]
+      }
+    },
+    "android": {
+      "package": "com.medquery.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "permissions": ["CALL_PHONE", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION", "CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "MedQuery",
+      "shortName": "MedQuery",
+      "themeColor": "#1c5d8c",
+      "backgroundColor": "#f3f6f8"
+    },
+    "plugins": [
+      ["expo-location", { "locationWhenInUsePermission": "MedQuery uses your location only when you ask it to find the best hospitals near you." }],
+      ["expo-image-picker", { "cameraPermission": "MedQuery uses the camera only when you photograph a lab report to scan.", "photosPermission": "MedQuery opens your photos only when you pick a lab report to scan." }],
+      "expo-secure-store"
+    ]
+  }
+}
