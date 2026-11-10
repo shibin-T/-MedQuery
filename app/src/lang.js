@@ -1,0 +1,6 @@
+// Answer languages (the AI writes answers in the chosen language)
+export const LANGS = [["en", "English", "English"], ["hi", "Hindi", "हिन्दी"], ["bn", "Bengali", "বাংলা"], ["te", "Telugu", "తెలుగు"], ["mr", "Marathi", "मराठी"], ["ta", "Tamil", "தமிழ்"], ["ur", "Urdu", "اردو"], ["gu", "Gujarati", "ગુજરાતી"], ["kn", "Kannada", "ಕನ್ನಡ"], ["ml", "Malayalam", "മലയാളം"], ["or", "Odia", "ଓଡ଼ିଆ"], ["pa", "Punjabi", "ਪੰਜਾਬੀ"], ["as", "Assamese", "অসমীয়া"], ["ne", "Nepali", "नेपाली"], ["si", "Sinhala", "සිංහල"], ["ar", "Arabic", "العربية"], ["zh", "Chinese", "中文"], ["es", "Spanish", "Español"], ["fr", "French", "Français"], ["de", "German", "Deutsch"], ["pt", "Portuguese", "Português"], ["ru", "Russian", "Русский"], ["ja", "Japanese", "日本語"], ["ko", "Korean", "한국어"], ["id", "Indonesian", "Bahasa Indonesia"], ["ms", "Malay", "Bahasa Melayu"], ["sw", "Swahili", "Kiswahili"], ["tr", "Turkish", "Türkçe"], ["vi", "Vietnamese", "Tiếng Việt"], ["th", "Thai", "ไทย"], ["fil", "Filipino", "Filipino"]];
+export const langNote = code => {
+  const l = LANGS.find(x => x[0] === code);
+  return !l || code === "en" ? "" : `\nLANGUAGE: Write every human-readable text value in ${l[1]} (${l[2]}). Keep JSON keys and fixed enum values (kind, confidence, status, booleans, numbers) in English. For key medical terms you may add the English term in brackets once.`;
+};
