@@ -1,27 +1,23 @@
 // Settings: AI engine, answer language, currency, calling permission
 import React, { useState } from "react";
-import { Modal, ScrollView, View, Text, Switch, Linking, Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { View, Text, Switch, Linking, Pressable } from "react-native";
 import { useTheme } from "../theme";
 import { Card, H, P, Btn, Chip, Input, s, str } from "./ui";
 import { LANGS } from "../lang";
 import { FX } from "../currency";
 import { ollamaModels, CLAUDE_MODEL } from "../ai";
 
-export default function SettingsModal({ visible, settings, onSave, onClose }) {
-  const t = useTheme(); const ins = useSafeAreaInsets();
+// Shown on the "More" tab. Changes apply when you tap Save.
+export default function SettingsPanel({ settings, onSave }) {
+  const t = useTheme();
   const [d, setD] = useState(settings);
+  const [saved, setSaved] = useState(false);
   const [olStatus, setOlStatus] = useState(""); const [olList, setOlList] = useState([]);
-  React.useEffect(() => { if (visible) setD(settings); }, [visible]);
-  const set = patch => setD({ ...d, ...patch });
+  React.useEffect(() => { setD(settings); }, [settings]);
+  const set = patch => { setSaved(false); setD({ ...d, ...patch }); };
   const check = async () => { setOlStatus("Connecting…"); try { const m = await ollamaModels(d.ollamaUrl); setOlList(m); setOlStatus(m.length ? "Connected. Pick a model." : "Connected, but no models yet. On that computer run: ollama pull qwen3:8b"); } catch { setOlStatus("Couldn't reach Ollama. It must be running with OLLAMA_HOST=0.0.0.0 and OLLAMA_ORIGINS=* on a computer on the same Wi-Fi."); } };
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
-      <ScrollView style={{ backgroundColor: t.paper }} contentContainerStyle={{ padding: 16, paddingTop: 16 + ins.top, paddingBottom: 40 + ins.bottom, gap: 14, maxWidth: 720, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
-          <Text style={{ flex: 1, fontSize: 24, fontWeight: "800", color: t.ink }} accessibilityRole="header">Settings</Text>
-          <Btn kind="ghost" small title="Close" onPress={onClose} />
-        </View>
+    <View style={{ gap: 14 }}>
 
         <Card>
           <H>AI engine</H>
@@ -68,9 +64,7 @@ export default function SettingsModal({ visible, settings, onSave, onClose }) {
           <P muted style={{ fontSize: 13 }}>Used for hospitals and your emergency number. Saved on this device only.</P>
         </Card>
 
-        <Btn title="Save" onPress={() => onSave({ ...d, apiKey: str(d.apiKey) })} />
-        <P muted style={{ fontSize: 12 }}>MedQuery gives general health information, not medical advice, and does not diagnose. In an emergency call your local emergency number.</P>
-      </ScrollView>
-    </Modal>
+        <Btn title={saved ? "Saved ✓" : "Save settings"} onPress={() => { onSave({ ...d, apiKey: str(d.apiKey) }); setSaved(true); }} />
+    </View>
   );
 }

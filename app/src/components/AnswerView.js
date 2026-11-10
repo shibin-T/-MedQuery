@@ -6,10 +6,12 @@ import { Section, P, H, Bullets, Rows, Btn, Chip, Input, Card, Tag, str, arr, ha
 import { FX, costText } from "../currency";
 import { personalRanges, defineWord } from "../search";
 
-export default function AnswerView({ d, detail, settings, onSettings, onToggleDetail, onSearch, onFollowUp }) {
+export default function AnswerView({ d, detail, settings, onSettings, onToggleDetail, onSearch, onFollowUp, onShare, onSave, saved }) {
   const t = useTheme();
   const kindColor = t[d.kind] || t.accent;
-  const sec = (title, children, key) => <Section key={key || title} title={title} level={importance(title)}>{children}</Section>;
+  // On a phone, long answers start folded: the first sections and anything critical stay open
+  let n = 0;
+  const sec = (title, children, key) => { const lvl = importance(title); const open = !detail || lvl === "critical" || n < 2; n++; return <Section key={key || title} title={title} level={lvl} defaultOpen={open}>{children}</Section>; };
   const conf = str(d.confidence).toLowerCase();
   const body = [];
   if (d.kind === "disease") diseaseSections(d, sec, body, onSearch, settings, onSettings);
@@ -32,6 +34,10 @@ export default function AnswerView({ d, detail, settings, onSettings, onToggleDe
         <Text style={{ fontSize: 26, fontWeight: "800", color: t.ink }} accessibilityRole="header" selectable>{str(d.title) || "Answer"}</Text>
         {has(d.aka) ? <P muted>Also called: {arr(d.aka).map(str).join(", ")}</P> : null}
         <P>{str(d.summary)}</P>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {onShare ? <Btn small kind="ghost" title="↗ Share" onPress={onShare} /> : null}
+          {onSave ? <Btn small kind="ghost" title={saved ? "★ Saved" : "☆ Save"} onPress={onSave} accessibilityLabel={saved ? "Remove from saved" : "Save for offline reading"} /> : null}
+        </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <Text style={[s.small, { color: t.muted }]}>Importance</Text>
           {["critical", "high", "medium", "info"].map(l => <View key={l} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}><View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: t[l] }} /><Text style={[s.small, { color: t.ink }]}>{IMP_LABEL[l]}</Text></View>)}

@@ -6,7 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import { File } from "expo-file-system";
 import { useTheme } from "../theme";
-import { Card, Section, H, P, Btn, Bullets, Loading, Tag, s, str, arr, has } from "./ui";
+import { Card, Section, H, P, Btn, Bullets, Loading, Tag, Input, s, str, arr, has } from "./ui";
 import { askJSON, engineReady } from "../ai";
 import { reportPrompt } from "../core";
 import { langNote } from "../lang";
@@ -23,13 +23,14 @@ async function readBase64(asset) {
 export default function ReportScanner({ settings, onOpenSettings, onDiagnosis, onSearch }) {
   const t = useTheme();
   const [st, setSt] = useState({ status: "idle" });
+  const [paste, setPaste] = useState(null); // null = hidden, string = text being pasted
   const ctl = useRef(null);
 
-  async function analyse(attachment) {
+  async function analyse(attachment, text = "") {
     ctl.current?.abort(); const my = ctl.current = new AbortController();
     setSt({ status: "loading" });
     try {
-      const d = await askJSON(settings, reportPrompt("", langNote(settings.lang)), { attachments: [attachment], signal: my.signal, maxTokens: 12000, effort: "medium" });
+      const d = await askJSON(settings, reportPrompt(text, langNote(settings.lang)), { attachments: attachment ? [attachment] : [], signal: my.signal, maxTokens: 12000, effort: "medium" });
       if (!d || d.readable === false) { setSt({ status: "error", msg: str(d?.reason) || "This doesn't look like a readable lab report. Try a sharper photo of the printed report." }); return; }
       setSt({ status: "done", d });
       const dx = arr(d.possibleDiagnoses).filter(x => str(x?.name));
@@ -62,7 +63,12 @@ export default function ReportScanner({ settings, onOpenSettings, onDiagnosis, o
           {Platform.OS !== "web" ? <Btn small icon="📷" title="Take a photo" onPress={() => pickImage(true)} /> : null}
           <Btn small kind="ghost" icon="🖼" title="Choose a photo" onPress={() => pickImage(false)} />
           <Btn small kind="ghost" icon="📄" title="Choose a PDF" onPress={pickPdf} />
+          <Btn small kind="ghost" icon="⌨" title="Paste text" onPress={() => setPaste(paste == null ? "" : null)} />
         </View>
+        {paste != null ? <>
+          <Input value={paste} onChangeText={setPaste} multiline placeholder="Paste the results from your lab's message or app" style={{ minHeight: 110, textAlignVertical: "top" }} accessibilityLabel="Report text" />
+          <Btn small title="Explain these results" disabled={str(paste).length < 10} onPress={() => analyse(null, paste)} style={{ alignSelf: "flex-start" }} />
+        </> : null}
       </Card>
       {st.status === "loading" ? <Card><Loading text="Reading your report…" /><Btn small kind="ghost" title="Stop" onPress={() => ctl.current?.abort()} /></Card> : null}
       {st.status === "error" ? <Card><P>{st.msg}</P></Card> : null}

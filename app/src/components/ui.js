@@ -1,6 +1,7 @@
 // Small shared UI pieces
 import React from "react";
 import { Pressable, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import { useTheme, IMP_LABEL } from "../theme";
 
 export const str = v => (v == null ? "" : String(v)).trim();
@@ -12,19 +13,46 @@ export function Card({ children, style, accent }) {
   return <View style={[s.card, { backgroundColor: t.card, borderColor: accent || t.rule }, accent && { borderLeftWidth: 4 }, style]}>{children}</View>;
 }
 
-// A titled answer block with the neon importance colour code
-export function Section({ title, level = "info", children }) {
+// A titled answer block with the neon importance colour code. Tap the heading to fold it
+// away, which keeps long answers compact on a phone.
+export function Section({ title, level = "info", children, defaultOpen = true }) {
   const t = useTheme(); const c = t[level] || t.info;
+  const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <View style={[s.card, s.section, { backgroundColor: t.card, borderColor: c, shadowColor: c }]} accessible={false}>
-      <View style={s.secHead}>
+    <View style={[s.card, s.section, { backgroundColor: t.card, borderColor: c, shadowColor: c }]}>
+      <Pressable onPress={() => setOpen(o => !o)} accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={title + ", " + IMP_LABEL[level] + (open ? ", tap to fold" : ", tap to open")} style={s.secHead} hitSlop={6}>
         <View style={[s.dot, { backgroundColor: c }]} />
         <Text style={[s.h3, { color: t.ink }]} accessibilityRole="header">{title}</Text>
         <Text style={[s.impTag, { color: c, borderColor: c }]}>{IMP_LABEL[level]}</Text>
-      </View>
-      {children}
+        <Text style={{ color: t.muted, fontSize: 14, width: 14, textAlign: "center" }}>{open ? "▾" : "▸"}</Text>
+      </Pressable>
+      {open ? children : null}
     </View>
   );
+}
+
+// iOS-style segmented switch (e.g. Answer | Sources | Best Care)
+export function Segmented({ items, value, onChange }) {
+  const t = useTheme();
+  return (
+    <View style={{ flexDirection: "row", backgroundColor: t.accentSoft, borderRadius: 12, padding: 3, gap: 3 }} accessibilityRole="tablist">
+      {items.map(([k, label]) => {
+        const on = k === value;
+        return (
+          <Pressable key={k} onPress={() => onChange(k)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+            style={{ flex: 1, paddingVertical: 8, borderRadius: 9, alignItems: "center", backgroundColor: on ? t.card : "transparent", shadowColor: "#000", shadowOpacity: on ? 0.12 : 0, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: on ? 1 : 0 }}>
+            <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: on ? "800" : "600", color: on ? t.ink : t.muted }}>{label}</Text>
+          </Pressable>);
+      })}
+    </View>
+  );
+}
+
+// Copies text (e.g. a phone number) and says so for two seconds
+export function CopyBtn({ text, label = "Copy" }) {
+  const [done, setDone] = React.useState(false);
+  return <Btn small kind="ghost" title={done ? "Copied ✓" : label} accessibilityLabel={label + " " + text}
+    onPress={async () => { try { await Clipboard.setStringAsync(String(text)); setDone(true); setTimeout(() => setDone(false), 2000); } catch {} }} />;
 }
 
 export function P({ children, muted, style, selectable = true }) {
@@ -109,7 +137,7 @@ export const s = StyleSheet.create({
   btnSmall: { paddingHorizontal: 10, paddingVertical: 6, minHeight: 36 },
   btnText: { fontSize: 15, fontWeight: "700" },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, minHeight: 44 },
+  input: { minWidth: 0, flexShrink: 1, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, minHeight: 44 },
   loading: { flexDirection: "row", gap: 10, alignItems: "center", paddingVertical: 8 },
   tag: { fontSize: 10, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase", borderWidth: 1, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1, alignSelf: "flex-start", overflow: "hidden" }
 });

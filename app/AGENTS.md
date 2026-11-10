@@ -42,6 +42,6 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## This project (MedQuery)
 
-- The app is a single screen (`App.js` + `src/components/`) and does not use Expo Router yet.
+- The app uses a hand-made bottom tab bar in `App.js` with screens in `src/screens/`; it does not use Expo Router yet. Screens stay mounted (hidden with `display: none`) so each tab keeps its state.
 - Article lookup, hospital ranking, emergency numbers and AI prompts live in `../site/medquery-core.js`, shared with the website. `metro.config.js` adds `../site` to Metro's watch folders; `src/core.js` re-exports it. Change that file, not a copy.
 - `src/termIndex.js` is generated from `../site/index.html` with `npm run sync-index`.
