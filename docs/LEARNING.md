@@ -199,3 +199,16 @@ This change was published to the live site from another session, so it existed o
 
 ### Commit: "Add a version number and load the AI file with it"
 **Caching.** To load faster, browsers keep copies of files and GitHub Pages tells them they may reuse a copy for up to 10 minutes. Right after an update, a visitor can still get the *old* page, or worse, a new `index.html` with an old `local-ai.js`. Loading the module as `local-ai.js?v=2026-11-10.3` makes each version a different address, so the two files always match. This trick is called **cache busting**. The version number now shows in the AI menu, the resource widget and error messages, so you can tell at a glance which version you're running.
+
+### Commit: "Help small downloaded AIs give readable answers"
+**The bug:** with the Smallest AI, searches ended with "no JSON in reply". The AI was working, but its reply couldn't be turned into cards.
+
+**Why:** a small AI has a small memory (its *context window*: about 4,000 tokens, roughly 12,000 characters, shared between the question and the answer). MedQuery's question plus its sources filled most of it, so the answer was cut off before it was finished, and very small AIs also sometimes ignore the format and reply in plain sentences.
+
+**The fix, in layers (a pattern called *graceful degradation*):**
+1. **Make room:** small AIs get fewer, shorter sources (`sourceBudget()`), and MedQuery works out how much room is left for the answer before asking.
+2. **Rescue cut-off answers:** `closeTruncated()` keeps everything that was complete and adds the missing `}` and `]`, so a cut-off answer still shows what it has, with a note that parts may be missing.
+3. **Ask more simply:** if that fails, MedQuery asks again with a much shorter form (a summary and a few key points).
+4. **Last resort:** if the AI still replies in plain text, MedQuery shows that text, clearly marked as not organised into sections.
+
+The error message now also shows how the AI's reply began, which makes problems like this much quicker to diagnose.

@@ -2539,7 +2539,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   const claudeCheck = IN_CLAUDE ? Promise.resolve(true) : new Promise(res => { const t0 = Date.now(); const tick = () => { if (typeof window.claude?.use === "function") { IN_CLAUDE = true; res(true); } else if (Date.now() - t0 > 1500) res(false); else setTimeout(tick, 100); }; tick(); });
   let MQL = null; // the on-device AI module, loaded only outside Claude
   // Version of this page. local-ai.js is loaded with the same version so the browser never mixes an old copy with a new one.
-  const MQ_BUILD = "2026-11-10.3";
+  const MQ_BUILD = "2026-11-10.4";
   async function loadLocalModule() { MQL ||= await import("./local-ai.js?v=" + MQ_BUILD); return MQL; }
   async function getSample() {
     if (sampleChecked) return sample;
@@ -3027,13 +3027,30 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         ui.status("Understanding your search…");
         const { kind, term } = mode !== "auto" ? { kind: mode, term: q } : await detectKind(q, s, myCtl.signal);
         ui.status("Looking up free official sources…");
-        const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind, q);
+        const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind, q, MQL.sourceBudget());
         const writingMsg = MQL.loadSettings().engine === "online" ? "Writing the answer with the online AI…" : "Writing the answer on your device…";
         ui.status(writingMsg);
-        d = await s.json(MQL.answerPrompt({ q, kind, context: g.context, detail: !!opts2.detail, langNote: LANG_NOTE(), followUp: opts2.context ? str(opts2.context.title) : "" }), {
-          signal: myCtl.signal, maxTokens: opts2.detail ? 2000 : 1300, onText: ({ text }) => { ui.writing(); ui.status(writingMsg + " " + text.length.toLocaleString() + " characters"); }
-        });
+        const onText = ({ text }) => { ui.writing(); ui.status(writingMsg + " " + text.length.toLocaleString() + " characters"); };
+        const ask = compact => s.json(MQL.answerPrompt({ q, kind, context: g.context, detail: !!opts2.detail && !compact, langNote: LANG_NOTE(), followUp: opts2.context ? str(opts2.context.title) : "", compact }), { signal: myCtl.signal, maxTokens: compact ? 500 : opts2.detail ? 2000 : 1300, onText });
+        let weak = "";
+        try { d = await ask(false); if (!str(d?.summary) && !str(d?.definition) && !str(d?.answer)) throw { code: "invalid_json", detail: "reply had no summary" }; }
+        catch (e1) {
+          if (e1?.code !== "invalid_json") throw e1;
+          // Small AIs sometimes can't fill the full form: ask again for a short, simple answer
+          ui.status("Simplifying the answer…");
+          try { const c = await ask(true); d = { kind: "question", title: str(c.title) || term, summary: str(c.summary), answer: str(c.summary), points: arr(c.points), related: [] }; weak = "This is a shortened answer: the AI on this device couldn't write the full version."; }
+          catch (e2) {
+            if (e2?.code !== "invalid_json") throw e2;
+            // Last resort: show the AI's plain-text reply, clearly marked
+            const prose = str(e2.text || e1.text).replace(/<\/?think>/g, "").replace(/[{}\[\]"]+/g, " ").replace(/\s+/g, " ").trim();
+            if (prose.length < 40) throw e2;
+            d = { kind: "question", title: term, summary: prose.split(/(?<=[.!?])\s/)[0].slice(0, 300), answer: prose.slice(0, 1500), related: [] };
+            weak = "The AI on this device replied in plain text, so this answer isn't organised into sections.";
+          }
+        }
+        if (d?.__truncated) weak ||= "The AI on this device ran out of room, so parts of this answer may be missing. A bigger size or the online AI gives fuller answers.";
         if (d && typeof d === "object") {
+          if (weak) { d.confidence = "low"; d.uncertainty = weak + " " + str(d.uncertainty); }
           d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
           d.title = str(d.title) || term;
           d.evidence = [...g.sources, ...(g.datasets || [])].map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));

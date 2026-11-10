@@ -18,7 +18,7 @@
 // Europe PMC open-access research) and tell the model to answer only from them.
 // ---------------------------------------------------------------------------
 
-export const BUILD = "2026-11-10.3"; // must match MQ_BUILD in index.html
+export const BUILD = "2026-11-10.4"; // must match MQ_BUILD in index.html
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.87";
 const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
 const SETTINGS_KEY = "medquery.localAI";
@@ -118,16 +118,45 @@ export async function webgpuStatus() {
 }
 
 // ---------- robust JSON from a small model ----------
+// Close a JSON reply that was cut off part-way (small models often run out of room):
+// drop the unfinished last value, then add the missing closing quotes and brackets.
+function closeTruncated(t) {
+  const stack = []; let inStr = false, esc = false, lastSafe = -1;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true;
+    else if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") { stack.pop(); if (!stack.length) return t.slice(0, i + 1); }
+    if (!inStr && (c === "," || c === "{" || c === "[")) lastSafe = i;
+  }
+  if (lastSafe < 0) return "";
+  let body = t.slice(0, lastSafe + 1).replace(/[,\s]+$/, "");
+  // recount the open brackets in the kept part
+  const st = []; inStr = false; esc = false;
+  for (const c of body) { if (inStr) { if (esc) esc = false; else if (c === "\\") esc = true; else if (c === '"') inStr = false; continue; } if (c === '"') inStr = true; else if (c === "{" || c === "[") st.push(c); else if (c === "}" || c === "]") st.pop(); }
+  return body + st.reverse().map(c => c === "{" ? "}" : "]").join("");
+}
 export function parseJSONLoose(text) {
-  let t = String(text || "").replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  t = t.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  let t = String(text || "").replace(/<think>[\s\S]*?<\/think>/g, "").replace(/^[\s\S]*?<\/think>/, "").trim();
+  t = t.replace(/^```(?:json)?/i, "").replace(/```\s*$/, "").trim();
   try { return JSON.parse(t); } catch {}
-  const a = t.indexOf("{"), b = t.lastIndexOf("}");
-  const a2 = t.indexOf("["), b2 = t.lastIndexOf("]");
-  const pick = (a >= 0 && (a2 < 0 || a < a2)) ? t.slice(a, b + 1) : a2 >= 0 ? t.slice(a2, b2 + 1) : "";
-  if (!pick) throw Object.assign(new Error("no JSON in reply"), { code: "invalid_json", text: t });
-  const repaired = pick.replace(/,\s*([}\]])/g, "$1").replace(/[“”]/g, '"');
-  try { return JSON.parse(repaired); } catch { throw Object.assign(new Error("bad JSON"), { code: "invalid_json", text: t }); }
+  const fix = x => x.replace(/,\s*([}\]])/g, "$1").replace(/[“”]/g, '"');
+  const a = t.indexOf("{"), a2 = t.indexOf("[");
+  const start = a >= 0 && (a2 < 0 || a < a2) ? a : a2;
+  if (start < 0) throw Object.assign(new Error("no JSON in reply"), { code: "invalid_json", text: t });
+  const from = t.slice(start), close = from[0] === "{" ? "}" : "]";
+  const whole = from.slice(0, from.lastIndexOf(close) + 1);
+  if (whole) { try { return JSON.parse(fix(whole)); } catch {} }
+  const cut = closeTruncated(from); // the reply was cut off: keep what's complete
+  if (cut) { try { const v = JSON.parse(fix(cut)); if (v && typeof v === "object") { v.__truncated = true; return v; } } catch {} }
+  throw Object.assign(new Error("bad JSON"), { code: "invalid_json", text: t });
+}
+
+// How many characters of source material fit for the current AI (small models have a ~4,000-token memory)
+export function sourceBudget(s = loadSettings()) {
+  if (s.engine === "browser") return /0\.8B|2B/.test(s.model) ? 2200 : /4B/.test(s.model) ? 3600 : 4500;
+  return 6000;
 }
 
 // ---------- engines ----------
@@ -179,7 +208,7 @@ async function chatBrowser(messages, { json, onText, signal, maxTokens, onProgre
   touchIdle();
   const strict = json && !jsonOff(settings.model);
   const once = async (msgs, useStrict) => {
-    const req = { messages: msgs, temperature: 0.2, max_tokens: maxTokens || 1400, stream: true, extra_body: { enable_thinking: false } };
+    const req = { messages: msgs, temperature: 0.2, max_tokens: maxTokens, frequency_penalty: 0.3, stream: true, extra_body: { enable_thinking: false } };
     if (useStrict) req.response_format = { type: "json_object" };
     let out = "";
     const stream = await eng.chat.completions.create(req);
@@ -190,7 +219,12 @@ async function chatBrowser(messages, { json, onText, signal, maxTokens, onProgre
     }
     return out;
   };
-  let msgs = messages, strictNow = strict;
+  // Fit the prompt and the answer into the model's memory (WebLLM's small models: 4,096 tokens; ~3 characters per token)
+  const CTX = 4096, est = ms => Math.ceil(ms.reduce((n, m) => n + m.content.length, 0) / 3) + 80;
+  let msgs = messages, want = maxTokens || 1400;
+  for (let i = 0; i < 3 && CTX - est(msgs) < Math.min(want, 700); i++) msgs = shrinkMessages(msgs, .6);
+  maxTokens = Math.max(64, Math.min(want, CTX - est(msgs) - 32));
+  let strictNow = strict;
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const out = await once(msgs, strictNow && !jsonOff(settings.model));
@@ -364,7 +398,11 @@ export async function getSampler(hooks = {}, options = {}) {
     finally { usage.working = false; bump(); }
   };
   const fn = async (input, opts) => ({ text: (await call(input, opts, false)).replace(/<think>[\s\S]*?<\/think>/g, "").trim(), truncated: false });
-  fn.json = async (input, opts) => parseJSONLoose(await call(input, opts, true));
+  fn.json = async (input, opts) => {
+    const out = await call(input, opts, true);
+    try { return parseJSONLoose(out); }
+    catch (e) { const t = String(out || "").replace(/\s+/g, " ").trim(); e.detail = (t ? "reply began: “" + t.slice(0, 90) + (t.length > 90 ? "…" : "") + "” (" + t.length + " characters)" : "the AI's reply was empty"); e.text = out; throw e; }
+  };
   fn.limits = async () => ({ maxPromptBytes: 24000 }); // no direct images: photos go through on-device text recognition
   fn.engine = "local";
   fn.describe = () => describeEngine(options.localOnly ? localEngine() : loadSettings().engine);
@@ -538,7 +576,7 @@ export async function findTrials(term, kind) {
 }
 
 // Gather sources for a query. Returns { sources:[{source,title,url,year,text}], datasets, trials, drug, context } (context fits a small model)
-export async function ground(term, kind, fullQuery = "") {
+export async function ground(term, kind, fullQuery = "", budget = 5400) {
   const tasks = [groundGenomes(term + " " + fullQuery), groundMesh(term)];
   if (kind === "drug") tasks.push(groundDrug(term).then(r => r.items));
   else if (kind === "test") tasks.push(groundTest(term).then(r => r.items));
@@ -554,9 +592,9 @@ export async function ground(term, kind, fullQuery = "") {
   const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 6);
   const dr = await drug;
   if (dr) sources.push({ source: dr.source, title: dr.name, url: dr.url, year: "", text: `Development stage: ${dr.status === "approved" ? "approved (phase 4)" + (dr.firstApproval ? ", first approved " + dr.firstApproval : "") : dr.status === "withdrawn" ? "withdrawn from the market" : dr.status === "experimental" ? "EXPERIMENTAL: highest stage reached is clinical trial phase " + dr.phase + "; not approved" : "research compound, not approved"}.` });
-  const budget = 5400;
-  const context = sources.map((s, i) => {
-    const t = s.text.slice(0, Math.max(280, Math.floor(budget / sources.length)));
+  const keep = sources.slice(0, Math.max(2, Math.floor(budget / 450))); // fewer sources for small AIs
+  const context = keep.map((s, i) => {
+    const t = s.text.slice(0, Math.max(220, Math.floor(budget / keep.length)));
     return `[S${i + 1}] ${s.source} — ${s.title}${s.year ? " (" + s.year + ")" : ""}\n${t}`;
   }).join("\n\n");
   return { sources, datasets: await ds, trials: await trials, drug: dr, context };
@@ -569,14 +607,20 @@ const KIND_SCHEMA = {
   drug: `"drug":{"class":"","howItWorks":"","administration":{"routes":["e.g. Oral tablet"],"how":"how and when it is taken, no personal doses"},"uses":["..."],"commonSideEffects":["..."],"seriousSideEffects":["..."],"cautions":["..."],"interactions":["..."]}`,
   question: `"answer":"direct plain answer","points":["..."]`
 };
-export function answerPrompt({ q, kind, context, detail, langNote, followUp }) {
+export function answerPrompt({ q, kind, context, detail, langNote, followUp, compact }) {
+  if (compact) return `SOURCES:
+${(context || "(none)").slice(0, 1500)}
+
+Answer the medical question "${q.slice(0, 200)}" in plain language, using only the SOURCES. Keep it short.
+Reply with ONLY this JSON and nothing else (start with {):
+{"title":"","summary":"2 short sentences","points":["4 short key facts"],"confidence":"low"}`;
   const size = detail ? "DETAILED: lists up to 6 items, 1 sentence each; add 2-3 'details' sections." : "QUICK: very short and simple, lists of 3-4 short phrases, 'details': [].";
   return `SOURCES (free official and open-access references):
 ${context || "(No sources could be retrieved.)"}
 
 TASK: Answer the medical query "${q.slice(0, 300)}"${followUp ? ` as a follow-up to "${followUp}"` : ""}. It is a ${kind}.
 RULES: Use ONLY facts stated in the SOURCES. If the sources do not cover a field, leave it empty ("" or []) rather than guessing. Plain language for non-medical readers. Never give personal doses. Name any medicine with how it is given. Anything not approved for routine use (only in clinical trials, early research) is EXPERIMENTAL: set "experimental":true or start the item with "Experimental: ". If the sources are missing or thin, set "confidence":"low" and explain in "uncertainty". ${size}${langNote || ""}
-Reply with ONE JSON object:
+Reply with ONLY one JSON object (start with {, no other text):
 {"kind":"${kind}","title":"","aka":[],"summary":"1-2 sentences","urgent":"warning signs needing urgent care, or ''",${KIND_SCHEMA[kind] || KIND_SCHEMA.question},"details":[],"confidence":"high|moderate|low","uncertainty":"","needsResearch":false,"related":["3-5 related searches"]}`;
 }
 export function reportPrompt(text, langNote) {
