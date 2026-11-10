@@ -20,6 +20,7 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Tests:** every element measured with normal values, and a box for age, sex and pregnancy to get personal ranges.
 - **Report scanner:** upload or paste a lab report (image or PDF). Personal details are skipped; each value gets a card showing how far it is from normal, what it means, and possible inferences.
 - **Care near you:** nearby hospitals sorted by distance, directions in your map app, and copy and call buttons for 24/7 numbers, plus a one-tap emergency button.
+- **Open health databases:** CDC WONDER (US statistics), WHO's Global Index Medicus (research from low- and middle-income countries), UK Biobank studies, the 1000 Genomes Project and HealthData.gov, alongside open-access journals and public guidelines.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
 
 ## Free on-device AI (outside Claude)
@@ -28,7 +29,7 @@ When MedQuery is opened outside Claude, it runs its AI on the visitor's own devi
 
 - **In the browser** (no install): the first search asks to download a small open model once (Qwen 3.5, about 2–4 GB, chosen to suit the device). Needs a recent Chrome or Edge with WebGPU.
 - **With Ollama** (computers): install [Ollama](https://ollama.com), run `ollama pull qwen3:8b`, allow the site with `OLLAMA_ORIGINS=https://shibin-t.github.io`, then pick **Ollama** under *On-device AI* (top right).
-- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources (US National Library of Medicine's MedlinePlus and Clinical Tables, openFDA drug labels, RxNav, Europe PMC open-access research) and tells the model to answer only from them. Source links appear with every answer.
+- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources (US National Library of Medicine's MedlinePlus and Clinical Tables, openFDA drug labels, RxNav, Europe PMC open-access research, published UK Biobank studies, and 1000 Genomes Project variant frequencies via Ensembl when a variant such as rs334 is mentioned) and tells the model to answer only from them. Matching HealthData.gov datasets are listed as links. Source links appear with every answer.
 - **Reports** are read with on-device text recognition (Tesseract.js); nothing is uploaded anywhere.
 - **Care near you** uses live OpenStreetMap hospital data.
 

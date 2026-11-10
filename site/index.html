@@ -631,8 +631,23 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     { name: "DailyMed (FDA labels)", tag: "drugs", url: q => "https://dailymed.nlm.nih.gov/dailymed/search.cfm?query=" + q },
     { name: "CDC", tag: "public health", url: q => "https://search.cdc.gov/search/?query=" + q },
     { name: "WHO", tag: "global", url: q => "https://www.who.int/home/search-results?indexCatalogue=genericsearchindex1&searchQuery=" + q },
-    { name: "PLOS Medicine", tag: "open journal", url: q => "https://journals.plos.org/plosmedicine/search?q=" + q }
+    { name: "PLOS Medicine", tag: "open journal", url: q => "https://journals.plos.org/plosmedicine/search?q=" + q },
+    { name: "Global Index Medicus (WHO)", tag: "low/middle-income research", url: q => "https://pesquisa.bvsalud.org/gim/?lang=en&q=" + q },
+    { name: "UK Biobank studies", tag: "500,000-person cohort", url: q => "https://europepmc.org/search?query=(" + q + ")%20AND%20%22UK%20Biobank%22%20AND%20(OPEN_ACCESS%3Ay)" },
+    { name: "1000 Genomes Project (Ensembl)", tag: "genetics", url: q => "https://www.ensembl.org/Human/Search/Results?q=" + q + ";site=ensembl;facet_species=Human" },
+    { name: "CDC WONDER", tag: "US statistics", url: () => "https://wonder.cdc.gov/" },
+    { name: "HealthData.gov", tag: "US datasets", url: q => "https://healthdata.gov/browse?q=" + q }
   ];
+  // Where a named source's "Read" link should go when the answer has no direct article link
+  function sourceLink(source, title) {
+    const q = encodeURIComponent(title.slice(0, 160)), src = source.toLowerCase();
+    if (/cdc wonder/.test(src)) return "https://wonder.cdc.gov/";
+    if (/healthdata\.gov/.test(src)) return "https://healthdata.gov/browse?q=" + q;
+    if (/global index medicus|\bgim\b|lilacs|imsear|african index medicus|imemr|wprim/.test(src)) return "https://pesquisa.bvsalud.org/gim/?lang=en&q=" + q;
+    if (/1000 genomes/.test(src)) { const rs = title.match(/\brs\d+\b/i); return rs ? "https://www.ensembl.org/Homo_sapiens/Variation/Population?v=" + rs[0].toLowerCase() : "https://www.ensembl.org/Human/Search/Results?q=" + q + ";site=ensembl;facet_species=Human"; }
+    if (/uk biobank/.test(src)) return "https://europepmc.org/search?query=" + q + "%20AND%20%22UK%20Biobank%22";
+    return "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)";
+  }
   function renderSources(term) {
     const q = encodeURIComponent(term);
     $("#srcNote").textContent = "Open “" + term + "” in free, open-access sources.";
@@ -723,14 +738,14 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
       const ul = el("ul", { class: "ev-list" });
       for (const x of evItems) {
         const label = [str(x.source), str(x.title), str(x.year)].filter(Boolean).join(" · ");
-        const q = encodeURIComponent((str(x.title) || str(x.source)).slice(0, 160));
-        const href = /^https:\/\//.test(str(x.url)) ? str(x.url) : "https://europepmc.org/search?query=" + q + "%20AND%20(OPEN_ACCESS%3Ay)";
-        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href, target: "_blank", rel: "noopener", text: "Read free ↗" })));
+        const href = /^https:\/\//.test(str(x.url)) ? str(x.url) : sourceLink(str(x.source), str(x.title) || str(x.source));
+        const isData = /dataset|cdc wonder|1000 genomes|healthdata\.gov/i.test(str(x.source));
+        ul.append(el("li", {}, el("span", { text: label }), " ", el("a", { href, target: "_blank", rel: "noopener", text: isData ? "Open data ↗" : "Read free ↗" })));
       }
       r.append(el("details", { class: "evidence", ...(conf && conf !== "high" ? { open: "" } : {}) },
         el("summary", {}, "Open-access sources", conf ? el("span", { class: "conf", text: conf + " confidence" }) : null),
         ul,
-        el("p", { class: "ev-note", text: "MedQuery bases answers on free, open-access journals and public guidelines. The links search Europe PMC's open-access collection so you can read the evidence yourself." })));
+        el("p", { class: "ev-note", text: "MedQuery bases answers on free, open-access journals, public guidelines and open health databases. Each link opens the source, or searches it, so you can check the evidence yourself." })));
     }
 
     const fu = el("div", { class: "followup" });
@@ -907,13 +922,13 @@ form.search button.up-btn:hover{border-color:var(--ink);background:var(--accent-
     const length = detail
       ? `LENGTH: DETAILED version. Fill every field fully (lists up to 8 items, each item one or two sentences) and add 3-5 "details" sections (for diseases: Pathology & pathophysiology, Complications, Outlook, Who is at risk; for tests: How it is done, What can affect results, Follow-up tests; for drugs: Typical dosing (general, "as prescribed"), Monitoring, Pregnancy & breastfeeding). About 700-1000 words.`
       : `LENGTH: QUICK version. Brief and simple, plain words a non-medical reader understands. Each list item is a short phrase (under 10 words). Lists 3-5 items. Summary one or two short sentences. "details": []. About 200-350 words total.`;
-    return `You are MedQuery, a medical reference engine. Base every statement STRICTLY on the best freely accessible (open-access, not paywalled) medical evidence: open-access peer-reviewed journals and articles (e.g. PubMed Central / Europe PMC open-access articles, Cochrane review abstracts and plain-language summaries, BMJ Open, PLOS Medicine, BMC Medicine and other BMC journals, JAMA Network Open, eClinicalMedicine, The Lancet's open-access titles), free clinical references (NCBI Bookshelf / StatPearls, MedlinePlus) and free public guidelines and labels (WHO, CDC, NICE, NIH, national health ministries such as ICMR/MoHFW, FDA DailyMed). Do not rely on paywalled-only sources. If open-access evidence is thin, mixed, preliminary or you are unsure, say so plainly in "uncertainty", lower "confidence", and set "needsResearch" true when more research is needed. Never invent studies, statistics, titles or citations; name only real sources you are confident exist. Never give personalised dosing. If the query is not medical, use kind "question" and say MedQuery covers medical topics. If it describes an emergency, fill "urgent".
+    return `You are MedQuery, a medical reference engine. Base every statement STRICTLY on the best freely accessible (open-access, not paywalled) medical evidence: open-access peer-reviewed journals and articles (e.g. PubMed Central / Europe PMC open-access articles, Cochrane review abstracts and plain-language summaries, BMJ Open, PLOS Medicine, BMC Medicine and other BMC journals, JAMA Network Open, eClinicalMedicine, The Lancet's open-access titles), free clinical references (NCBI Bookshelf / StatPearls, MedlinePlus) and free public guidelines and labels (WHO, CDC, NICE, NIH, national health ministries such as ICMR/MoHFW, FDA DailyMed). Also use these open health databases where they fit: CDC WONDER (US mortality, births and disease-surveillance statistics; say the figures are US and give the data year), Global Index Medicus (WHO's index of research from low- and middle-income countries, e.g. LILACS, African Index Medicus, IMSEAR; prefer it for diseases common in those regions and for local evidence), UK Biobank (cite published open-access studies of this 500,000-person UK cohort for risk factors, genetics and outcomes; note that its participants are mostly white British adults aged 40-69 at recruitment, so findings may not apply everywhere), 1000 Genomes Project (population frequencies of genetic variants across African, American, East Asian, European and South Asian groups; use for genetic questions and rsIDs) and HealthData.gov (US public health datasets; name a dataset only if you are confident it exists). When one of these is used, put its name in "source" (e.g. "CDC WONDER", "Global Index Medicus", "UK Biobank study · <journal>", "1000 Genomes Project", "HealthData.gov"). Do not rely on paywalled-only sources. If open-access evidence is thin, mixed, preliminary or you are unsure, say so plainly in "uncertainty", lower "confidence", and set "needsResearch" true when more research is needed. Never invent studies, statistics, titles or citations; name only real sources you are confident exist. Never give personalised dosing. If the query is not medical, use kind "question" and say MedQuery covers medical topics. If it describes an emergency, fill "urgent".
 ${hint}${ctx}
 Query: """${q.slice(0, 2000)}"""
 
 ${length}
 
-Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects {"source": open-access journal or free guideline body, "title": real article/guideline title or topic page you are confident exists, "year": "YYYY or ''"}), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
+Reply with ONLY one JSON object. Always include: "kind" ("disease"|"test"|"drug"|"question"), "title", "aka" (array), "summary", "urgent" (red flags needing urgent care, or ""), "evidence" (array of 2-5 objects {"source": open-access journal, free guideline body or open database, "title": real article/guideline title, topic page, dataset or variant (e.g. rs334) you are confident exists, "year": "YYYY or ''"}), "confidence" ("high"|"moderate"|"low"), "uncertainty" ("" when evidence is clear and consistent; otherwise one plain sentence on what is uncertain or debated), "needsResearch" (true|false), "related" (4-6 related searches), "details" (array of {"heading","body","bullets"}).
 Then the fields for that kind:
 - disease: "definition" (1-2 plain sentences), "symptoms": {"common": [...], "uncommon": [...]}, "causes": [...], "tests": [{"name","why"}] (screening and confirmatory tests), "homeRemedies": {"applicable": true only for simple, usually self-limiting conditions (e.g. common cold, mild gastroenteritis, minor burns) else false, "note": "one line on when to see a doctor, or why home remedies are not appropriate", "items": [{"name","how": "one-line recipe/method","allergens": [list every known common allergen in it, e.g. milk, egg, peanut, tree nuts, soy, wheat/gluten, sesame, mustard, fish, shellfish, celery, honey (never for infants under 1), citrus, turmeric, ginger, garlic, pollen; [] if none]}]} — only well-established safe remedies, "prevention": [...], "treatments": [{"option","route": "for medicines: how it is given (route + form, e.g. Oral tablet, IV injection, Inhaler, Eye drops); '' for non-medicine treatments","note": "short","usd": [low, high] typical US cost as numbers,"inr": [low, high] typical Indian cost as numbers,"unit": "e.g. per course, per month, one-time"}].
 - test: "purpose", "specimen", "preparation", "components": [{"name","normal": "typical adult normal range","unit": "conventional unit","depends": true if the normal value meaningfully changes with age, sex, pregnancy or another factor}] — list EVERY element/parameter the test reports (e.g. CBC: hemoglobin, hematocrit, RBC, MCV, MCH, MCHC, RDW, WBC, neutrophils, lymphocytes, monocytes, eosinophils, basophils, platelets), "factors": [the factors the ranges depend on, from: "age","sex","pregnancy","fasting"], "highLow": [{"finding": "e.g. High ALT","meaning"}].
@@ -1898,7 +1913,7 @@ Reply with ONLY JSON, keys in this order${LANG_NOTE() ? " (" + LANG_NOTE().trim(
 
   // ---------- Home + "What is MedQuery?" widget ----------
   let aboutTurns = [], aboutCtl = null;
-  const ABOUT_RULES = `You are the help assistant inside MedQuery, a free medical reference website. Answer questions about what MedQuery is and how to use it, briefly (under 80 words), in plain language. Facts about MedQuery: one search bar for diseases (definition, pathology, symptoms, causes, tests, safe home remedies with allergen warnings, prevention, treatments with rough costs), medical tests (every element tested with normal values, plus a box to enter age/sex/pregnancy for personal ranges) and medicines (uses, side effects, cautions, interactions); any medical question can be asked; answers are quick by default with a "Show the detailed version" button; highlight any word in an answer to see its meaning; answers are based on free, open-access medical sources and say when evidence is uncertain; a "Care near you" panel suggests hospitals and clinics for your city and has an emergency call button; it is general information, not a diagnosis, and never replaces a doctor. If the user asks a medical question, give a one-line pointer and suggest they type it in the search bar.`;
+  const ABOUT_RULES = `You are the help assistant inside MedQuery, a free medical reference website. Answer questions about what MedQuery is and how to use it, briefly (under 80 words), in plain language. Facts about MedQuery: one search bar for diseases (definition, pathology, symptoms, causes, tests, safe home remedies with allergen warnings, prevention, treatments with rough costs), medical tests (every element tested with normal values, plus a box to enter age/sex/pregnancy for personal ranges) and medicines (uses, side effects, cautions, interactions); any medical question can be asked; answers are quick by default with a "Show the detailed version" button; highlight any word in an answer to see its meaning; answers are based on free, open-access medical sources (open journals, WHO, CDC, NIH, plus open databases: CDC WONDER statistics, WHO's Global Index Medicus, published UK Biobank studies, the 1000 Genomes Project and HealthData.gov) and say when evidence is uncertain; a "Care near you" panel suggests hospitals and clinics for your city and has an emergency call button; it is general information, not a diagnosis, and never replaces a doctor. If the user asks a medical question, give a one-line pointer and suggest they type it in the search bar.`;
   function openAbout() {
     let w = $("#about");
     if (w) { w.hidden = false; w.querySelector("input")?.focus(); return; }
@@ -2506,7 +2521,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         ui.status("Understanding your search…");
         const { kind, term } = mode !== "auto" ? { kind: mode, term: q } : await detectKind(q, s, myCtl.signal);
         ui.status("Looking up free official sources…");
-        const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind);
+        const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind, q);
         ui.status("Writing the answer on your device…");
         d = await s.json(MQL.answerPrompt({ q, kind, context: g.context, detail: !!opts2.detail, langNote: LANG_NOTE(), followUp: opts2.context ? str(opts2.context.title) : "" }), {
           signal: myCtl.signal, maxTokens: opts2.detail ? 2000 : 1300, onText: ({ text }) => { ui.writing(); ui.status("Writing the answer on your device… " + text.length.toLocaleString() + " characters"); }
@@ -2514,7 +2529,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         if (d && typeof d === "object") {
           d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
           d.title = str(d.title) || term;
-          d.evidence = g.sources.map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));
+          d.evidence = [...g.sources, ...(g.datasets || [])].map(x => ({ source: x.source, title: x.title, year: x.year, url: x.url }));
           if (!g.sources.length) { d.confidence = "low"; d.uncertainty = str(d.uncertainty) || "No official source could be reached, so this answer comes only from a small on-device AI and may be wrong. Check it with a doctor or a trusted source."; d.needsResearch = true; }
           d.engineNote = "Answered on your device · " + s.describe();
         }

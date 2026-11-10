@@ -134,3 +134,19 @@ This change was published to the live site from another session, so it existed o
 **Also fixed:** with a saved location, the hospital list didn't load when the page first opened. The code asked "are we inside Claude?" before the line that sets up that check had run. JavaScript's `const` and `let` can't be used before their line runs (the "temporal dead zone"); deferring the call with `setTimeout(findCare, 0)` lets the rest of the script load first.
 
 **Lesson:** for speed, measure where the waiting happens first. Here almost all the time was waiting on the network or the AI, so the fixes were about waiting *less often* (cache), waiting *in parallel* (concurrency, racing) and *showing results sooner* (streaming), not about faster code.
+
+### Commit: "Add CDC WONDER, Global Index Medicus, UK Biobank, 1000 Genomes and HealthData.gov"
+**Lesson: before using a data source, check how it can be reached.** The five databases look alike in a list, but they're opened in very different ways:
+
+| Database | How a website can reach it | What MedQuery does |
+|---|---|---|
+| **1000 Genomes Project** | Open API (Ensembl REST), no key | GitHub version: when you mention a variant like `rs334`, it fetches allele frequencies by population and gives them to the AI as a source. |
+| **UK Biobank** | Raw data needs an approved research application and fee, so no website can search it directly | Uses *published* open-access studies of UK Biobank data, found through Europe PMC. |
+| **HealthData.gov** | Open catalogue API (Socrata) | Lists matching datasets as links. They describe data rather than answer questions, so they aren't given to the AI as facts. |
+| **Global Index Medicus** | Website search only, no open API | A search link, plus Claude is told to use it for diseases common in low- and middle-income countries. |
+| **CDC WONDER** | An XML API that only returns national US totals and needs a data-use agreement | A link, plus Claude is told to use its US statistics and say the year and that they're US figures. |
+
+**New ideas in the code:**
+- **API (application programming interface):** a web address that returns data (usually JSON) instead of a page, made for programs. `rest.ensembl.org/variation/human/rs334?pops=1` is one.
+- **Context budget:** a small on-device AI can only read a few thousand words, so `ground()` picks at most 5 sources and trims each one. Dataset descriptions are kept out of that budget on purpose.
+- **Bias notes:** UK Biobank participants are mostly white British adults aged 40–69, so the AI is told to say that its findings may not apply everywhere. Good data tools state who the data does and doesn't represent.

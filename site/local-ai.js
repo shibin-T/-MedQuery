@@ -234,21 +234,62 @@ async function groundResearch(term) {
   }));
 }
 
-// Gather sources for a query. Returns { sources:[{source,title,url,year,text}], context } (context fits a small model)
-export async function ground(term, kind) {
+// UK Biobank: the raw data needs an approved research application, so we use its published,
+// open-access findings (studies that analysed UK Biobank data), found through Europe PMC.
+async function groundBiobank(term) {
+  const q = encodeURIComponent(`(TITLE_ABS:"${term}") AND (TITLE_ABS:"UK Biobank") AND OPEN_ACCESS:y`);
+  const j = await getJSON(`https://www.ebi.ac.uk/europepmc/webservices/rest/search?query=${q}&format=json&resultType=core&pageSize=1&sort=CITED%20desc`);
+  return (j?.resultList?.result || []).filter(r => r.abstractText).map(r => ({
+    source: "UK Biobank study · " + (r.journalInfo?.journal?.title || r.journalTitle || "open-access journal"), title: clip(r.title, 160),
+    url: r.pmcid ? `https://europepmc.org/article/PMC/${r.pmcid}` : `https://europepmc.org/article/${r.source}/${r.id}`,
+    year: String(r.pubYear || ""), text: clip(r.abstractText, 700)
+  }));
+}
+// 1000 Genomes Project: population allele frequencies for a genetic variant (rsID), via Ensembl's open API
+const POPS = { ALL: "all", AFR: "African", AMR: "admixed American", EAS: "East Asian", EUR: "European", SAS: "South Asian" };
+async function groundGenomes(text) {
+  const ids = [...new Set((String(text).match(/\brs\d{2,12}\b/gi) || []).map(x => x.toLowerCase()))].slice(0, 2);
+  const out = [];
+  for (const id of ids) {
+    const j = await getJSON(`https://rest.ensembl.org/variation/human/${id}?pops=1;content-type=application/json`).catch(() => null);
+    if (!j || j.error) continue;
+    const freqs = (j.populations || []).filter(p => /^1000GENOMES:phase_3:(ALL|AFR|AMR|EAS|EUR|SAS)$/.test(p.population));
+    const byPop = {};
+    for (const p of freqs) { const k = p.population.split(":").pop(); if (j.minor_allele ? p.allele === j.minor_allele : !byPop[k]) byPop[k] = `${p.allele} ${(p.frequency * 100).toFixed(1)}%`; }
+    const lines = Object.entries(POPS).filter(([k]) => byPop[k]).map(([k, v]) => `${v}: ${byPop[k]}`);
+    const clin = (j.clinical_significance || []).join(", ");
+    out.push({ source: "1000 Genomes Project (via Ensembl)", title: `Variant ${j.name}`, url: `https://www.ensembl.org/Homo_sapiens/Variation/Population?v=${j.name}`, year: "",
+      text: clip(`Variant ${j.name}: ${(j.mappings?.[0]?.allele_string) || ""} ${j.most_severe_consequence ? "(" + j.most_severe_consequence.replace(/_/g, " ") + ")" : ""}. ` +
+        (j.minor_allele ? `Minor allele ${j.minor_allele}, global frequency ${j.MAF != null ? (j.MAF * 100).toFixed(1) + "%" : "unknown"}. ` : "") +
+        (lines.length ? `1000 Genomes phase 3 allele frequency by population: ${lines.join("; ")}. ` : "") + (clin ? `Clinical significance (ClinVar): ${clin}.` : ""), 700) });
+  }
+  return out;
+}
+// HealthData.gov: the US government's open health-data catalogue. Dataset descriptions are pointers,
+// not answers, so they are shown as links and not given to the AI as facts.
+async function findDatasets(term) {
+  const j = await getJSON(`https://api.us.socrata.com/api/catalog/v1?domains=healthdata.gov&q=${encodeURIComponent(term)}&only=dataset&limit=3`, 7000);
+  return (j?.results || []).map(r => ({ source: "HealthData.gov dataset", title: clip(r.resource?.name || "Dataset", 140), url: r.permalink || r.link || `https://healthdata.gov/d/${r.resource?.id}`, year: String(r.resource?.data_updated_at || r.resource?.updatedAt || "").slice(0, 4) })).filter(d => d.url);
+}
+
+// Gather sources for a query. Returns { sources:[{source,title,url,year,text}], datasets, context } (context fits a small model)
+export async function ground(term, kind, fullQuery = "") {
   const tasks = [];
+  tasks.push(groundGenomes(term + " " + fullQuery));
   if (kind === "drug") tasks.push(groundDrug(term).then(r => r.items));
   else if (kind === "test") tasks.push(groundTest(term).then(r => r.items));
   else tasks.push(groundDisease(term).then(r => r.items));
   tasks.push(groundResearch(term));
+  if (kind !== "test") tasks.push(groundBiobank(term));
+  const ds = findDatasets(term).catch(() => []);
   const results = await Promise.allSettled(tasks);
-  const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 4);
+  const sources = results.flatMap(r => r.status === "fulfilled" ? r.value : []).filter(s => s.text).slice(0, 5);
   let budget = 5200;
   const context = sources.map((s, i) => {
     const t = s.text.slice(0, Math.max(300, Math.floor(budget / sources.length)));
     return `[S${i + 1}] ${s.source} — ${s.title}${s.year ? " (" + s.year + ")" : ""}\n${t}`;
   }).join("\n\n");
-  return { sources, context };
+  return { sources, datasets: await ds, context };
 }
 
 // Compact prompts for small models (≈4k-token window): one kind at a time, fewer fields
