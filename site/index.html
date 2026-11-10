@@ -15,6 +15,39 @@
 .exp-alert{border-color:#ffd60a!important}
 .def-src{font-size:.78rem;color:var(--muted);margin-top:4px}
 /* AI readiness: chip tones, banner and setup screen */
+.eng-wrap{position:fixed;z-index:44;top:calc(12px + env(safe-area-inset-top,0px));right:max(12px,env(safe-area-inset-right,0px));display:flex;gap:6px;max-width:calc(60vw - 20px)}
+[dir="rtl"] .eng-wrap{right:auto;left:max(12px,env(safe-area-inset-left,0px))}
+.eng-wrap .eng-chip{position:static;max-width:100%;min-width:0}
+.eng-wrap .res-btn{flex:none;padding:6px 9px}
+.eng-wrap .res-btn[aria-pressed="true"]{background:var(--accent-soft)}
+.eng-dot[data-tone="busy"]{background:#3b9eff;box-shadow:0 0 8px #3b9eff;animation:mqpulse 1.2s ease-in-out infinite}
+.eng-dot[data-tone="off"]{background:#f5a524;box-shadow:0 0 8px #f5a524}
+.ai-banner-btns{display:flex;gap:8px;flex-wrap:wrap}
+.eng-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.eng-card{display:grid;gap:8px;align-content:start;border:1.5px solid var(--ink);border-radius:14px;padding:12px 14px;box-shadow:3px 3px 0 var(--ink)}
+.eng-card ul{margin:0;padding-left:1.1em;font-size:.88rem;display:grid;gap:3px}
+.eng-card-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.eng-card-top em,.eng-badge{font-style:normal;font-size:.72rem;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--accent-soft)}
+.eng-badge[data-on="yes"]{background:#d6f5e3;color:#0b5d30}
+.eng-badge[data-on="no"]{background:color-mix(in srgb,var(--muted) 18%,transparent);color:var(--ink)}
+.eng-items{display:grid;gap:10px}
+.eng-item{display:grid;gap:6px;border:1.5px solid var(--rule);border-radius:12px;padding:10px 12px}
+.eng-item[data-current="yes"]{border-color:var(--ink);box-shadow:2px 2px 0 var(--ink)}
+.eng-item small{color:var(--muted)}
+.eng-item-top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.eng-item .guide-ok,.eng-item .stop{padding:6px 12px;font-size:.85rem}
+.eng-toggle{display:flex;gap:8px;align-items:center;font-size:.9rem}
+.res-widget{position:fixed;z-index:43;width:min(290px,calc(100vw - 16px));background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink),0 14px 30px -14px rgba(0,0,0,.35);font-size:.82rem;touch-action:none}
+.res-widget[data-min="yes"]{width:auto;max-width:min(290px,calc(100vw - 16px))}
+.res-head{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 12px;cursor:grab;user-select:none;-webkit-user-select:none}
+.res-head:active{cursor:grabbing}
+.res-head b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.84rem}
+.res-btn-mini{flex:none;width:26px;height:26px;border:1px solid var(--rule);border-radius:7px;background:transparent;color:var(--ink);cursor:pointer;font:600 .9rem var(--f-body);line-height:1}
+.res-body{display:grid;gap:8px;padding:0 12px 12px;touch-action:auto}
+.res-body dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;margin:0}
+.res-body dt{color:var(--muted)}.res-body dd{margin:0;overflow-wrap:anywhere}
+.res-note{margin:0;font-size:.72rem;color:var(--muted)}
+.res-actions{display:flex;gap:6px;flex-wrap:wrap}
 .eng-chip[data-tone="off"] .eng-dot{background:#f5a524;box-shadow:0 0 8px #f5a524}
 .eng-chip[data-tone="bad"] .eng-dot{background:#e5484d;box-shadow:0 0 8px #e5484d}
 .eng-chip[data-tone="busy"] .eng-dot{background:#3b9eff;box-shadow:0 0 8px #3b9eff;animation:mqpulse 1.2s ease-in-out infinite}
@@ -2392,7 +2425,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     const fail = (title, msg) => { if (my !== repCtl) return; r.replaceChildren(el("div", { class: "err" }, el("div", { class: "meta", text: "Report not read" }), el("h2", { text: title, style: "font-family:var(--f-display);margin:0" }), el("p", { text: msg, style: "margin:0;color:var(--muted)" }), el("button", { class: "stop", type: "button", text: "Upload another report", onclick: openGuide }))); };
     const s = await getSample();
     if (!s) return fail("Report scanning is off in this view", "Reading reports needs Claude, which only runs when MedQuery is opened inside Claude.");
-    if (s.engine === "local") return analyzeReportLocal(file, isPdf, s, my, ul, fail);
+    if (s.engine === "local") { const ls = await MQL.getSampler({ onProgress: engineProgress, needSetup }, { localOnly: true }); return analyzeReportLocal(file, isPdf, ls, my, ul, fail); } // reports stay on this device
     const caps = await s.limits?.().catch(() => null) || null;
     const canImg = !!caps?.images;
     try {
@@ -2510,7 +2543,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
     await claudeCheck;
     if (IN_CLAUDE) { try { sample = await window.claude.use("sample"); } catch { sample = null; } }
     else {
-      try { await loadLocalModule(); sample = await MQL.getSampler({ onProgress: p => engineProgress(p), needSetup: () => openSetup() }); }
+      try { await loadLocalModule(); sample = await MQL.getSampler({ onProgress: p => engineProgress(p), needSetup }); }
       catch (e) { console.warn("On-device AI unavailable:", e); sample = null; }
     }
     sampleChecked = true;
@@ -2528,119 +2561,218 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       return { kind, term: str(r?.term) || q };
     } catch (e) { if (e?.code === "cancelled") throw e; return { kind: looksLikeQuestion(q) ? "question" : "disease", term: q }; }
   }
-  // ---------- On-device AI: status, one-time setup, and the search gate ----------
-  // States: checking → not_setup | unsupported → setting_up → ready. Searches and reports wait until "ready".
-  const AI = { state: "checking", pct: 0, line: "", eta: "", pending: null, device: null, error: "", evicted: false, view: "" };
-  function setAI(state, extra = {}) { Object.assign(AI, { state }, extra); updateEngineChip(); updateAIBanner(); if (setupBox?.isConnected) drawSetup(); }
-  const gb = n => (n < 10 ? n.toFixed(1) : Math.round(n)) + " GB";
+  // ---------- AI engines (outside Claude): status, setup, menu, restart, resource widget ----------
+  // Three ways to run MedQuery's AI:
+  //   "online"  - no download; Gemma 4 runs on MedQuery's free server (or Puter). Search words go online; reports never do.
+  //   "browser" - downloaded into this browser (WebLLM). Private, works offline.
+  //   "ollama"  - downloaded into the Ollama app, in a folder the person chooses.
+  // States: checking → not_setup → setting_up → ready (or error). Searches wait until "ready".
+  const AI = { state: "checking", pct: 0, line: "", eta: "", pending: null, device: null, error: "", evicted: false, view: "", why: "", installed: null, setupKind: "" };
+  function setAI(state, extra = {}) { Object.assign(AI, { state }, extra); updateEngineChip(); updateAIBanner(); renderResWidget(); if (setupBox?.isConnected) drawSetup(); }
+  const gb = n => (n < 10 ? (+n).toFixed(1) : Math.round(n)) + " GB";
+  const fmtBytes = b => b >= 1e9 ? (b / 1e9).toFixed(2) + " GB" : b >= 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(0, Math.round(b / 1e3)) + " KB";
   const pickModel = id => MQL.BROWSER_MODELS.find(m => m.id === id) || MQL.BROWSER_MODELS[0];
+  const ENGINE_NAME = { online: "Online AI", browser: "Downloaded AI", ollama: "Ollama app" };
+  const OS = /Win/.test(navigator.platform || navigator.userAgent) ? "windows" : /Mac/.test(navigator.platform || navigator.userAgent) ? "mac" : "linux";
 
-  // Progress from the model download / start-up, shared by the setup screen, banner, chip and search screen
+  // Progress from the model download / start-up, shared by the setup screen, banner, chip, widget and search screen
   function engineProgress(p) {
     const pct = Math.round((p.progress || 0) * 100), txt = str(p.text);
     const fromDisk = /cache/i.test(txt) && !/fetch/i.test(txt);
     const mb = +(txt.match(/(\d+(?:\.\d+)?)\s*MB fetched/i)?.[1] || 0), secs = +(txt.match(/(\d+)\s*secs? elapsed/i)?.[1] || 0);
     let eta = "";
     if (!fromDisk && secs > 5 && p.progress > .02 && p.progress < 1) { const left = secs * (1 - p.progress) / p.progress; eta = left > 90 ? "about " + Math.round(left / 60) + " min left" : "under 2 min left"; }
-    const line = fromDisk ? "Starting the AI from this device" : mb ? "Downloaded " + (mb / 1000).toFixed(1) + " GB" : "Downloading the AI (one time only)";
-    if (AI.state === "setting_up") { AI.pct = pct; AI.line = line; AI.eta = eta; updateEngineChip(); updateAIBanner(); if (setupBox?.isConnected) drawProgress(); }
+    const line = /testing/i.test(txt) ? "Testing the AI" : fromDisk ? "Starting the AI from this device" : mb ? "Downloaded " + (mb / 1000).toFixed(1) + " GB" : txt && /connect/i.test(txt) ? txt : "Downloading the AI (one time only)";
+    if (AI.state === "setting_up") { AI.pct = pct; AI.line = line; AI.eta = eta; updateEngineChip(); updateAIBanner(); renderResWidget(); if (setupBox?.isConnected) drawProgress(); }
     const n = document.getElementById("engProg");
     if (n) { n.hidden = false; n.querySelector("b").textContent = pct + "%"; n.querySelector("i").style.width = pct + "%"; n.querySelector("span").textContent = fromDisk ? "Starting the AI on this device (takes a few seconds after a break)" : line; }
   }
 
-  // Stop here until the AI is set up; remember what the person wanted to do and do it afterwards
+  // Stop here until an AI is set up; remember what the person wanted and do it afterwards
   async function aiGate(pending) {
     await claudeCheck; if (IN_CLAUDE) return true;
     try { await loadLocalModule(); } catch { toast("MedQuery couldn't load its AI files. Check your internet and reload the page."); return false; }
+    if (pending.type === "report") {
+      if (MQL.localEngine()) return true;
+      AI.pending = pending; openSetup("download", "report"); return false;
+    }
     if (MQL.isSetUp()) return true;
-    AI.pending = pending; openSetup();
-    return false;
+    AI.pending = pending; openSetup(); return false;
   }
   function runPending() {
     const p = AI.pending; AI.pending = null; if (!p) return;
-    if (p.type === "search") { input.value = p.q; run(p.q, p.opts); }
-    else if (p.type === "report") analyzeReport(p.file);
+    if (p.type === "search") { input.value = p.q; run(p.q, p.opts || {}); }
+    else if (p.type === "report" && p.file) analyzeReport(p.file);
+  }
+  function needSetup(kind) { if (kind === "signin") openSetup("online"); else if (kind === "local") openSetup("download", "report"); else openSetup(); }
+
+  // ----- Restart MedQuery after installing a downloaded AI, then carry on with what the person was doing -----
+  const RESUME_KEY = "medquery.resume";
+  async function restartMedQuery() {
+    const p = AI.pending, save = v => { try { sessionStorage.setItem(RESUME_KEY, JSON.stringify(v)); return true; } catch { return false; } };
+    if (p?.type === "search") save({ type: "search", q: p.q, opts: { detail: p.opts?.detail } });
+    else if (p?.type === "report" && p.file && p.file.size < 3.5e6) {
+      const data = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(p.file); });
+      if (!data || !save({ type: "report", name: p.file.name, mime: p.file.type, data })) save({ type: "report-lost" });
+    } else save({ type: "none" });
+    const box = setupBox?.querySelector(".guide"); if (box) box.replaceChildren(el("h2", { class: "guide-title", text: "Restarting MedQuery…" }), el("p", { class: "guide-lede", text: "This takes a few seconds." }));
+    setTimeout(() => location.reload(), 400);
+  }
+  async function resumeAfterRestart() {
+    let r = null; try { r = JSON.parse(sessionStorage.getItem(RESUME_KEY) || "null"); sessionStorage.removeItem(RESUME_KEY); } catch {}
+    if (!r) return;
+    if (!MQL.isSetUp()) { toast("MedQuery restarted, but the AI isn't ready. Open the AI menu to check it."); return; }
+    toast("MedQuery restarted. The AI is installed and ready.");
+    if (r.type === "search" && r.q) { AI.pending = { type: "search", q: r.q, opts: r.opts }; setTimeout(runPending, 600); }
+    else if (r.type === "report" && r.data) { try { const blob = await (await fetch(r.data)).blob(); AI.pending = { type: "report", file: new File([blob], r.name || "report", { type: r.mime || blob.type }) }; setTimeout(runPending, 600); } catch {} }
+    else if (r.type === "report-lost") setTimeout(() => toast("Please choose your report again: it was too large to keep during the restart."), 1500);
   }
 
-  // Status chip (top right): always shows whether the AI is ready
-  const CHIP = { checking: ["checking", "AI: checking…"], not_setup: ["off", "AI not set up · Set up"], unsupported: ["bad", "AI can't run here · Options"], setting_up: ["busy", "Setting up AI"], ready: ["on", "AI ready"], error: ["bad", "AI setup failed · Retry"] };
+  // ----- Status chip (top right) and resource-widget button -----
+  const CHIP = { checking: ["checking", "AI: checking…"], not_setup: ["off", "AI not set up · Set up"], setting_up: ["busy", "Setting up AI"], ready: ["on", "AI ready"], error: ["bad", "AI setup failed · Retry"] };
   function updateEngineChip() {
     if (IN_CLAUDE || !MQL) return;
-    let chip = document.getElementById("engChip");
-    if (!chip) { chip = el("button", { id: "engChip", class: "eng-chip no-tr", type: "button", onclick: () => openSetup() }); document.body.append(chip); }
+    let wrap = document.getElementById("engWrap");
+    if (!wrap) {
+      wrap = el("div", { id: "engWrap", class: "eng-wrap no-tr" },
+        el("button", { id: "engChip", class: "eng-chip", type: "button", onclick: () => openSetup() }),
+        el("button", { id: "resBtn", class: "eng-chip res-btn", type: "button", "aria-label": "Show or hide the resource usage widget", title: "Resource usage", onclick: () => toggleResWidget() }, el("span", { "aria-hidden": "true", text: "📊" })));
+      document.body.append(wrap);
+    }
+    const chip = $("#engChip");
     const [tone, label] = CHIP[AI.state] || CHIP.checking;
     const st = MQL.loadSettings();
-    const name = st.engine === "ollama" ? "Ollama · " + st.ollamaModel : pickModel(st.model).short;
-    const text = AI.state === "setting_up" ? label + " " + AI.pct + "%" : AI.state === "ready" ? label + " · " + name : label;
+    const where = st.engine === "online" ? "Online" : st.engine === "ollama" ? "Ollama" : pickModel(st.model).short + " · on device";
+    const text = AI.state === "setting_up" ? label + " " + AI.pct + "%" : AI.state === "ready" ? label + " · " + where : label;
     chip.dataset.tone = tone;
     chip.replaceChildren(el("span", { class: "eng-dot", "aria-hidden": "true" }), el("span", { text }));
-    chip.setAttribute("aria-label", text + ". Open AI setup and settings.");
+    chip.setAttribute("aria-label", text + ". Open the AI menu.");
+    $("#resBtn").setAttribute("aria-pressed", String(!!resState().open));
   }
 
-  // Banner under the search bar while the AI isn't ready
+  // ----- Banner under the search bar while no AI is ready -----
   function updateAIBanner() {
     if (IN_CLAUDE || !MQL) return;
     let b = document.getElementById("aiBanner");
     if (!b) { b = el("div", { id: "aiBanner", class: "ai-banner no-tr", role: "region", "aria-label": "AI setup" }); $("#searchForm").closest(".searchbox").after(b); }
-    const m = pickModel(MQL.loadSettings().model);
     b.hidden = AI.state === "ready" || AI.state === "checking";
     if (b.hidden) return;
-    const btn = (text, primary) => el("button", { class: primary ? "guide-ok" : "stop", type: "button", text, onclick: () => openSetup() });
-    if (AI.state === "setting_up") b.replaceChildren(el("div", { class: "ai-banner-text" }, el("b", { text: "Setting up the AI… " + AI.pct + "%" }), el("span", { text: [AI.line, AI.eta].filter(Boolean).join(" · ") + ". Keep this tab open." })), el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })), btn("Details"));
-    else if (AI.state === "unsupported") b.replaceChildren(el("div", { class: "ai-banner-text" }, el("b", { text: "This browser can't run MedQuery's AI" }), el("span", { text: "See other ways to use MedQuery, such as Chrome or Edge on a computer." })), btn("See options", true));
-    else b.replaceChildren(el("div", { class: "ai-banner-text" },
-      el("b", { text: AI.evicted ? "Your browser removed the AI to free space. Set it up again to search." : AI.state === "error" ? "AI setup didn't finish." : "Set up the free AI before your first search" }),
-      el("span", { text: `One-time setup: about ${gb(m.gb)} download. It runs on this device, so it's free and private.` })), btn(AI.state === "error" ? "Try again" : "Set up AI", true));
+    if (AI.state === "setting_up") { b.replaceChildren(el("div", { class: "ai-banner-text" }, el("b", { text: "Setting up the AI… " + AI.pct + "%" }), el("span", { text: [AI.line, AI.eta].filter(Boolean).join(" · ") + ". Keep this tab open." })), el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })), el("button", { class: "stop", type: "button", text: "Details", onclick: () => openSetup() })); return; }
+    b.replaceChildren(el("div", { class: "ai-banner-text" },
+      el("b", { text: AI.evicted ? "Your browser removed the downloaded AI to free space. Choose an AI to keep searching." : AI.state === "error" ? "AI setup didn't finish." : "Choose how MedQuery's AI runs before your first search" }),
+      el("span", { text: "Online: no download, ready in a minute. Downloaded: private and works offline." })),
+      el("div", { class: "ai-banner-btns" }, el("button", { class: "guide-ok", type: "button", text: "Use online AI", onclick: () => openSetup("online") }), el("button", { class: "stop", type: "button", text: "Download instead", onclick: () => openSetup("download") })));
   }
 
-  // ----- The setup screen -----
-  let setupBox = null, chosenModel = "";
-  function openSetup() {
-    if (IN_CLAUDE) return;
-    if (setupBox?.isConnected) { setupBox.querySelector("button")?.focus(); return; }
-    setupBox = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "setupTitle" });
-    setupBox.addEventListener("keydown", e => { if (e.key === "Escape") closeSetup(); });
-    document.body.append(setupBox);
-    AI.view = "";
+  // ----- The setup screens and the AI menu -----
+  let setupBox = null, chosenModel = "", chosenPlace = "browser";
+  function openSetup(view, why) {
+    if (IN_CLAUDE || !MQL) return;
+    if (view !== undefined) AI.view = view; else if (AI.state !== "setting_up") AI.view = "";
+    if (why !== undefined) AI.why = why;
+    if (!setupBox?.isConnected) {
+      setupBox = el("div", { class: "guide-layer", role: "dialog", "aria-modal": "true", "aria-labelledby": "setupTitle" });
+      setupBox.addEventListener("keydown", e => { if (e.key === "Escape") closeSetup(); });
+      setupBox.addEventListener("click", e => { if (e.target === setupBox) closeSetup(); });
+      document.body.append(setupBox);
+    }
     drawSetup();
-    if (!AI.device) MQL.deviceCheck().then(d => { AI.device = d; if (!d.gpu.ok && AI.state === "not_setup" && MQL.loadSettings().engine === "browser") setAI("unsupported"); else drawSetup(); });
+    setupBox.querySelector(".guide-ok, button")?.focus({ preventScroll: true });
+    if (!AI.device) MQL.deviceCheck().then(d => { AI.device = d; if (setupBox?.isConnected) drawSetup(); });
   }
-  function closeSetup() { setupBox?.remove(); setupBox = null; if (AI.state !== "ready" && AI.state !== "setting_up") AI.pending = null; }
+  function closeSetup() { setupBox?.remove(); setupBox = null; if (AI.state !== "setting_up" && AI.view !== "confirm") AI.pending = null; }
   const row = (ok, title, text) => el("li", { class: "chk", "data-ok": ok === true ? "yes" : ok === false ? "no" : "warn" }, el("span", { class: "chk-ic", "aria-hidden": "true", text: ok === true ? "✓" : ok === false ? "✕" : "!" }), el("div", {}, el("b", { text: title }), text ? el("small", { text }) : null));
-  function drawSetup() {
-    if (!setupBox) return;
-    const st = MQL.loadSettings(), d = AI.device;
-    if (!chosenModel || !MQL.BROWSER_MODELS.some(m => m.id === chosenModel)) chosenModel = st.model || MQL.BROWSER_MODELS[1].id;
-    const m = pickModel(chosenModel);
-    const head = el("div", { class: "about-head" }, el("h2", { id: "setupTitle", class: "guide-title" }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: closeSetup }));
-    const H = t => head.querySelector("h2").textContent = t;
+  function frame(title) {
+    const head = el("div", { class: "about-head" }, el("h2", { id: "setupTitle", class: "guide-title", text: title }), el("button", { class: "about-x", type: "button", "aria-label": "Close", text: "×", onclick: closeSetup }));
     const sec = el("section", { class: "guide setup" }, head);
     setupBox.replaceChildren(sec);
-    const pendingNote = AI.pending ? el("p", { class: "setup-pending", text: AI.pending.type === "search" ? `Your search for “${AI.pending.q}” will start as soon as the AI is ready.` : "Your report will be read as soon as the AI is ready." }) : null;
+    if (AI.pending && AI.view !== "menu") sec.append(el("p", { class: "setup-pending", text: AI.pending.type === "search" ? `Your search for “${AI.pending.q}” will start as soon as the AI is ready.` : "Your report will be read as soon as an on-device AI is ready." }));
+    return sec;
+  }
+  const back = (to = "") => el("button", { class: "linkish", type: "button", text: "← Back", onclick: () => { if (AI.state === "error") AI.state = MQL.isSetUp() ? "ready" : "not_setup"; AI.view = to; drawSetup(); } });
+  function drawSetup() {
+    if (!setupBox) return;
+    const st = MQL.loadSettings();
+    if (AI.state === "setting_up") { const sec = frame(AI.setupKind === "online" ? "Connecting the online AI" : "Downloading the AI"); sec.append(el("div", { id: "setupProg" })); drawProgress(); return; }
+    const anyReady = ["online", "browser", "ollama"].some(k => MQL.engineReady(k, st));
+    const v = AI.view || (anyReady ? "menu" : "choose");
+    ({ choose: drawChoose, online: drawOnline, download: drawDownload, ollama: drawOllama, confirm: drawConfirm, menu: drawMenu }[v] || drawChoose)(st);
+  }
 
-    if (AI.state === "setting_up") { H("Setting up the AI"); sec.append(pendingNote || "", el("div", { id: "setupProg" })); drawProgress(); return; }
-    if (AI.state === "ready" && AI.view !== "change") { H("MedQuery's AI is ready"); drawManage(sec, st); return; }
-    if (AI.view === "ollama") { H("Use the Ollama app (computers)"); drawOllama(sec, st); return; }
+  // 1) Choose: online or download
+  function drawChoose(st) {
+    const sec = frame("How should MedQuery's AI run?");
+    sec.append(el("p", { class: "guide-lede", text: "MedQuery needs an AI to write answers. Pick one; you can switch any time from the AI menu (top right)." }));
+    if (AI.evicted) sec.append(el("p", { class: "setup-warn", text: "Your browser removed the downloaded AI earlier to free up space." }));
+    if (AI.why === "report") sec.append(el("p", { class: "setup-warn", text: "Reading reports needs a downloaded AI, because reports never leave your device." }));
+    const card = (kind, title, badge, lines, btnText, go) => el("div", { class: "eng-card" }, el("div", { class: "eng-card-top" }, el("b", { text: title }), badge ? el("em", { text: badge }) : null), el("ul", {}, ...lines.map(t => el("li", { text: t }))), el("button", { class: kind === "online" ? "guide-ok" : "stop", type: "button", text: btnText, onclick: go }));
+    sec.append(el("div", { class: "eng-cards" },
+      AI.why === "report" ? null : card("online", "Online AI: no download", "Quickest", ["Ready in about a minute; nothing to install.", "Answers by " + MQL.ONLINE_MODEL_LABEL + ", running on a free server.", "Your search words are sent online. Reports are not.", "Free daily limit; needs internet."], "Use online AI", () => openSetup("online")),
+      card("download", "Downloaded AI: private", "Works offline", ["Runs on this device; questions stay here.", "One-time download of 1.6–6.5 GB.", "Uses memory and graphics chip while answering.", "Needed for reading reports."], "Download the AI", () => openSetup("download"))));
+    sec.append(el("div", { class: "guide-actions" }, el("span", { class: "note", text: "Settings are saved on this device only." }), el("button", { class: "linkish", type: "button", text: "Close", onclick: closeSetup })));
+  }
 
-    H("Set up MedQuery's free AI");
-    sec.append(el("p", { class: "guide-lede", text: "MedQuery answers using an AI that runs on this device, so it's free and your questions and reports are answered here, not on a company's server. You set it up once; after that it's ready whenever you open MedQuery in this browser." }), pendingNote || "");
-    if (AI.evicted) sec.append(el("p", { class: "setup-warn", text: "Your browser removed the AI earlier to free up space, so it needs setting up again." }));
-    if (AI.state === "error") sec.append(el("p", { class: "setup-warn", text: "The last setup didn't finish: " + AI.error }));
+  // 2a) Online AI
+  function drawOnline(st) {
+    const sec = frame("Use the online AI");
+    const server = !!st.online.url;
+    sec.append(el("table", { class: "use-table" }, el("tbody", {}, ...[
+      ["AI", MQL.ONLINE_MODEL_LABEL + (server ? ", on MedQuery's free server (Cloudflare)" : ", through Puter")],
+      ["Download", "None. Nothing is installed on this device."],
+      ["This device", "Almost no memory, battery or graphics-chip use."],
+      ["Internet per search", "Your search words and short source extracts (a few KB) are sent to the AI; the answer comes back."],
+      ["Privacy", "Questions are processed online" + (server ? " by Cloudflare." : " by Puter, under your Puter account.") + " Reports are never sent online."],
+      ["Limit", server ? "A shared free daily allowance. If it runs out, switch to a downloaded AI or try tomorrow." : "Puter gives each account a free monthly allowance; Puter asks before charging anything."]
+    ].map(([k, t]) => el("tr", {}, el("th", { scope: "row", text: k }), el("td", { text: t }))))));
+    const status = el("p", { class: "note", "aria-live": "polite", text: AI.state === "error" && AI.setupKind === "online" ? AI.error : "" });
+    if (server) {
+      sec.append(status, el("div", { class: "guide-actions" }, back(), el("button", { class: "guide-ok", type: "button", text: "Turn on online AI", onclick: () => startSetup("online", "server") })));
+    } else {
+      const signIn = el("button", { class: "guide-ok", type: "button", text: "1. Sign in to Puter (free)" });
+      const go = el("button", { class: "guide-ok", type: "button", text: "2. Turn on online AI", disabled: "" });
+      MQL.puterSignedIn().then(ok => { if (ok) { signIn.textContent = "✓ Signed in to Puter"; signIn.disabled = true; go.disabled = false; } });
+      signIn.addEventListener("click", async () => {
+        status.textContent = "A Puter sign-in window is opening. Create a free account or sign in, then come back here.";
+        try { await MQL.puterSignIn(); signIn.textContent = "✓ Signed in to Puter"; signIn.disabled = true; go.disabled = false; status.textContent = "Signed in. Now turn on the online AI."; }
+        catch (e) { status.textContent = /popup_blocked/.test(String(e?.error || e?.message || e)) ? "Your browser blocked the sign-in window. Allow pop-ups for this site, then try again." : "Sign-in didn't finish. Try again."; }
+      });
+      go.addEventListener("click", () => startSetup("online", "puter"));
+      sec.append(el("p", { class: "guide-lede", text: "Puter is a separate free service. Signing in lets MedQuery use its AI without anyone paying: each account gets a free allowance." }), el("div", { class: "setup-actions" }, signIn, go), status, el("div", { class: "guide-actions" }, back(), el("span")));
+    }
+  }
 
-    // Step 1: device check
+  // 2b) Downloaded AI: device check, size, WHERE to keep it, what it uses
+  function drawDownload(st) {
+    const sec = frame("Download the AI");
+    const d = AI.device;
+    if (!chosenModel || !MQL.BROWSER_MODELS.some(m => m.id === chosenModel)) chosenModel = st.model || MQL.BROWSER_MODELS[1].id;
+    const m = pickModel(chosenModel);
+    if (AI.why === "report") sec.append(el("p", { class: "setup-warn", text: "Reports never leave your device, so reading them needs an AI downloaded here (the online AI isn't used for reports)." }));
+    if (AI.state === "error" && AI.setupKind === "browser") sec.append(el("p", { class: "setup-warn", text: "The last download didn't finish: " + AI.error }));
+
+    // Step 1: where to keep it (asked every time a download starts)
+    const place = (val, title, text) => { const r = el("label", { class: "size-opt" }, el("input", { type: "radio", name: "aiPlace", value: val, ...(chosenPlace === val ? { checked: "" } : {}) }), el("span", {}, el("b", { text: title }), el("small", { text }))); r.querySelector("input").addEventListener("change", () => { chosenPlace = val; drawSetup(); }); return r; };
+    sec.append(el("h3", { class: "setup-h", text: "1. Where should the AI be saved?" }), el("div", { class: "size-opts", role: "radiogroup", "aria-label": "Where to save the AI" },
+      place("browser", "Inside this browser (easiest)", `Saved in ${d?.browser || "the browser"}'s private storage on this device${d?.freeGB != null ? ", which has about " + gb(d.freeGB) + " available" : ""}. Browsers don't let websites pick a folder, for security. Nothing to install.`),
+      place("ollama", "In a folder you choose (computers)", "Uses the free Ollama app, which saves the AI in any folder or drive you pick. Bigger, more accurate models. Takes a few extra steps.")));
+    if (chosenPlace === "ollama") { sec.append(el("div", { class: "guide-actions" }, back(), el("button", { class: "guide-ok", type: "button", text: "Next: choose the folder", onclick: () => openSetup("ollama") }))); return; }
+
+    // Step 2: device check
     const checks = el("ul", { class: "chk-list" });
     if (!d) checks.append(row(null, "Checking this device…"));
     else {
-      checks.append(d.gpu.ok ? row(true, d.browser + " can run the AI", d.gpu.f16 ? "" : "Your graphics chip uses a slightly larger, slower version.") : row(false, d.browser + " can't run the AI", d.gpu.reason));
-      if (d.memGB) checks.append(d.memGB >= m.ramGb ? row(true, "Memory: about " + d.memGB + " GB or more", "") : row(null, "Memory: about " + d.memGB + " GB", "Tight for this size. If answers fail, choose a smaller size."));
-      if (d.freeGB != null) checks.append(d.freeGB >= m.gb * 1.2 ? row(true, "Storage: enough free space", "About " + gb(d.freeGB) + " available to this browser.") : row(false, "Storage: may not be enough free space", `Needs about ${gb(m.gb)}; this browser reports about ${gb(d.freeGB)} available. Free up space, choose a smaller size, or avoid private/incognito windows, which have very little space.`));
+      checks.append(d.gpu.ok ? row(true, d.browser + " can run the AI", d.gpu.f16 ? "" : "Your graphics chip uses a slightly larger, slower version.") : row(false, d.browser + " can't run a downloaded AI", d.gpu.reason));
+      if (d.memGB) checks.append(d.memGB >= m.ramGb ? row(true, "Memory: about " + d.memGB + " GB or more") : row(null, "Memory: about " + d.memGB + " GB", "Tight for this size. If answers fail, choose a smaller size."));
+      if (d.freeGB != null) checks.append(d.freeGB >= m.gb * 1.2 ? row(true, "Storage: enough free space", "About " + gb(d.freeGB) + " available to this browser.") : row(false, "Storage: may not be enough free space", `Needs about ${gb(m.gb)}; this browser reports about ${gb(d.freeGB)}. Free up space, choose a smaller size, or avoid private/incognito windows.`));
       if (d.saveData || d.cellular) checks.append(row(null, "You may be on mobile data", `The download is ${gb(m.gb)}. Use Wi-Fi if you can.`));
       if (d.battery && !d.battery.charging && d.battery.level < 50) checks.append(row(null, "Battery at " + d.battery.level + "%", "Plug in your charger. Setup and answers use a lot of power."));
     }
-    sec.append(el("h3", { class: "setup-h", text: "1. Your device" }), checks);
-    if (d && !d.gpu.ok) { drawAlternatives(sec); return; }
-
-    // Step 2: choose a size
+    sec.append(el("h3", { class: "setup-h", text: "2. Your device" }), checks);
+    if (d && !d.gpu.ok) {
+      sec.append(el("p", { class: "note", text: "Options: open MedQuery in Chrome or Edge on a computer, save the AI in a folder with the Ollama app (above), or use the online AI." }), el("div", { class: "guide-actions" }, back(), AI.why === "report" ? el("span") : el("button", { class: "guide-ok", type: "button", text: "Use online AI instead", onclick: () => openSetup("online") })));
+      return;
+    }
+    // Step 3: size
     const rec = d ? (d.mobile || (d.memGB && d.memGB < 8) ? MQL.BROWSER_MODELS[1].id : MQL.BROWSER_MODELS[0].id) : "";
     const opts = el("div", { class: "size-opts", role: "radiogroup", "aria-label": "AI size" });
     for (const x of MQL.BROWSER_MODELS) {
@@ -2649,107 +2781,222 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
       card.querySelector("input").addEventListener("change", () => { chosenModel = x.id; drawSetup(); });
       opts.append(card);
     }
-    sec.append(el("h3", { class: "setup-h", text: "2. Choose a size" }), opts);
-
-    // Step 3: what it uses
-    sec.append(el("h3", { class: "setup-h", text: "3. What it will use" }), el("table", { class: "use-table" }, el("tbody", {},
+    sec.append(el("h3", { class: "setup-h", text: "3. Choose a size" }), opts);
+    // Step 4: what it uses
+    sec.append(el("h3", { class: "setup-h", text: "4. What it will use" }), el("table", { class: "use-table" }, el("tbody", {},
       ...[["Download", `${gb(m.gb)}, once. Wi-Fi recommended.`],
-          ["Storage", `${gb(m.gb)} kept in this browser so it starts quickly next time. You can remove it any time from this screen.`],
+          ["Saved in", `This browser's storage on this device (${gb(m.gb)}). Stays until you remove it from the AI menu.`],
           ["Memory", `About ${gb(m.ramGb)} while you're using it. Freed automatically after 10 minutes without a search.`],
           ["Graphics chip and battery", "Works hard for about 10–60 seconds while writing each answer, so the device may get warm and the battery drains faster then. Nothing runs in the background."],
-          ["Internet per search", "A few small look-ups (well under 1 MB) in free medical databases such as MedlinePlus, Europe PMC and ClinicalTrials.gov. Your search words are sent to them; your reports are not."],
-          ["Time", m.gb > 3 ? "About 5–20 minutes on home broadband, longer on slow connections." : "About 3–10 minutes on home broadband, longer on slow connections."]
-         ].map(([k, v]) => el("tr", {}, el("th", { scope: "row", text: k }), el("td", { text: v }))))));
+          ["Internet per search", "A few small look-ups (well under 1 MB) in free medical databases. Your search words are sent to them; your reports are not."],
+          ["Time", m.gb > 3 ? "About 5–20 minutes on home broadband." : "About 3–10 minutes on home broadband."]
+         ].map(([k, t]) => el("tr", {}, el("th", { scope: "row", text: k }), el("td", { text: t }))))));
     const lowSpace = d && d.freeGB != null && d.freeGB < m.gb * 1.2;
-    sec.append(el("div", { class: "guide-actions" },
-      el("button", { class: "linkish", type: "button", text: "Use the Ollama app instead (computers)", onclick: () => { AI.view = "ollama"; drawSetup(); } }),
-      el("button", { class: "guide-ok", type: "button", text: lowSpace ? `Try anyway (${gb(m.gb)})` : `Set up AI (${gb(m.gb)})`, onclick: () => startSetup("browser") })));
-    if (AI.state === "ready") sec.append(el("button", { class: "linkish", type: "button", text: "Keep the current AI", onclick: () => { AI.view = ""; drawSetup(); } }));
+    sec.append(el("p", { class: "note", text: "After the download, MedQuery checks the installation with a short test, then restarts itself so everything is ready." }),
+      el("div", { class: "guide-actions" }, back(), el("button", { class: "guide-ok", type: "button", text: (lowSpace ? "Try anyway" : "Download") + ` (${gb(m.gb)}) into this browser`, onclick: () => startSetup("browser") })));
   }
+
+  // 2c) Ollama app, saving the AI in a folder the person chooses
+  function drawOllama(st) {
+    const sec = frame("Save the AI in a folder (Ollama app)");
+    const origin = location.origin.startsWith("http") ? location.origin : "https://shibin-t.github.io";
+    const defFolder = { windows: "C:\\Users\\<you>\\.ollama\\models", mac: "~/.ollama/models", linux: "/usr/share/ollama/.ollama/models" }[OS];
+    const folderIn = el("input", { id: "olFolder", type: "text", value: st.ollamaFolder, placeholder: OS === "windows" ? "e.g. D:\\MedQuery-AI" : "e.g. /Users/you/MedQuery-AI", "aria-label": "Folder for the AI" });
+    const osSel = el("select", { "aria-label": "Your computer" }, ...[["windows", "Windows"], ["mac", "Mac"], ["linux", "Linux"]].map(([v, t]) => el("option", { value: v, text: t }))); osSel.value = OS;
+    const cmds = el("div", { class: "os-codes" });
+    const drawCmds = () => {
+      const f = folderIn.value.trim(), os = osSel.value, list = [];
+      if (os === "windows") { if (f) list.push(`setx OLLAMA_MODELS "${f}"`); list.push(`setx OLLAMA_ORIGINS "${origin}"`); }
+      else if (os === "mac") { if (f) list.push(`launchctl setenv OLLAMA_MODELS "${f}"`); list.push(`launchctl setenv OLLAMA_ORIGINS "${origin}"`); }
+      else list.push(`${f ? `OLLAMA_MODELS="${f}" ` : ""}OLLAMA_ORIGINS="${origin}" ollama serve`);
+      cmds.replaceChildren(el("small", { text: os === "linux" ? "Run this in one terminal and leave it open:" : "Paste each line into " + (os === "windows" ? "Command Prompt" : "Terminal") + " and press Enter:" }), ...list.map(c => copyCode(c)),
+        el("small", { text: os === "linux" ? "Then, in a second terminal, download the AI (about 5 GB):" : "Then quit Ollama (" + (os === "windows" ? "right-click its icon by the clock → Quit" : "click its icon in the menu bar → Quit") + "), open it again, and download the AI (about 5 GB):" }), copyCode("ollama pull qwen3:8b"));
+    };
+    folderIn.addEventListener("input", () => { const ns = MQL.loadSettings(); ns.ollamaFolder = folderIn.value.trim(); MQL.saveSettings(ns); drawCmds(); });
+    osSel.addEventListener("change", drawCmds); drawCmds();
+    const urlIn = el("input", { id: "engUrl", type: "url", value: st.ollamaUrl, "aria-label": "Ollama address" });
+    const olSel = el("select", { id: "engOllama", "aria-label": "Installed AI models" }, el("option", { value: st.ollamaModel || "", text: st.ollamaModel || "Check first to list installed models" }));
+    const status = el("p", { class: "note", "aria-live": "polite", text: AI.state === "error" && AI.setupKind === "ollama" ? AI.error : "" });
+    const go = el("button", { class: "guide-ok", type: "button", text: "Confirm installation", disabled: st.ollamaModel ? null : "" });
+    const check = el("button", { class: "stop", type: "button", text: "Check installation" });
+    check.addEventListener("click", async () => {
+      status.textContent = "Looking for Ollama on this computer…";
+      try { const ms = await MQL.ollamaModels(urlIn.value); olSel.replaceChildren(...ms.map(x => el("option", { value: x.name, text: x.name + (x.gb ? " · " + x.gb + " GB" : "") }))); if (st.ollamaModel && ms.some(x => x.name === st.ollamaModel)) olSel.value = st.ollamaModel; else { const q = ms.find(x => /qwen3/.test(x.name)); if (q) olSel.value = q.name; }
+        status.textContent = ms.length ? "Found Ollama with " + ms.length + " AI model" + (ms.length > 1 ? "s" : "") + ". Choose one, then confirm." : "Ollama is running, but no AI is downloaded yet. Run the “ollama pull” line above, then check again."; go.disabled = !ms.length; }
+      catch { status.textContent = "Couldn't reach Ollama. Make sure the app is open and the lines above were run (then Ollama restarted), and try again."; }
+    });
+    go.addEventListener("click", () => { const ns = MQL.loadSettings(); ns.ollamaUrl = urlIn.value.trim() || "http://localhost:11434"; ns.ollamaModel = olSel.value; MQL.saveSettings(ns); startSetup("ollama"); });
+    sec.append(
+      el("p", { class: "guide-lede", text: "Ollama is a free app for Windows, Mac and Linux. It saves the AI in the folder you choose and runs it on this computer. The recommended AI (Qwen 3 · 8B) needs about 5 GB of space and 6–8 GB of memory while answering." }),
+      el("ol", { class: "eng-steps big" },
+        el("li", {}, "Download and install Ollama from ", el("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener", text: "ollama.com/download" }), ", then open it."),
+        el("li", {}, el("b", { text: "Choose where to save the AI. " }), "Type a folder (it can be on another drive), or leave empty to use Ollama's usual place (" + defFolder + ").", el("div", { class: "row-flex" }, folderIn, osSel)),
+        el("li", {}, el("b", { text: "Tell Ollama about the folder and allow MedQuery, then download the AI." }), cmds),
+        el("li", {}, el("b", { text: "Check the installation" }), ", choose the AI, and confirm.", el("div", { class: "row-flex" }, urlIn, check), olSel, status)),
+      el("div", { class: "guide-actions" }, back("download"), go));
+  }
+
+  // 3) Confirm the installation, then restart MedQuery
+  function drawConfirm(st) {
+    const sec = frame("Installation complete");
+    const i = AI.installed || {};
+    const where = i.kind === "ollama" ? (st.ollamaFolder || "Ollama's usual folder") : "this browser's storage on this device";
+    sec.append(el("ul", { class: "chk-list" },
+      row(true, i.kind === "ollama" ? "Ollama found, with " + st.ollamaModel : pickModel(st.model).short + " downloaded (" + gb(pickModel(st.model).gb) + ")"),
+      row(true, "Saved in " + where),
+      row(true, "Test answer passed", i.reply ? "The AI replied: “" + i.reply + "”" : "")),
+      el("p", { class: "guide-lede", text: "Restart MedQuery to finish. It reloads this page with the new AI switched on" + (AI.pending ? ", then carries on with " + (AI.pending.type === "search" ? "your search." : "your report.") : ".") }),
+      el("div", { class: "guide-actions" }, el("button", { class: "linkish", type: "button", text: "Restart later", onclick: () => { AI.view = ""; setAI("ready"); closeSetup(); toast("The AI is installed. Restart MedQuery from the AI menu when you're ready."); } }), el("button", { class: "guide-ok", type: "button", text: "Restart MedQuery", onclick: restartMedQuery })));
+  }
+
+  // AI menu: every AI, its status, and what can be done with it
+  function drawMenu(st) {
+    const sec = frame("AI menu");
+    const ready = k => MQL.engineReady(k, st);
+    const cur = st.engine, m = pickModel(st.model), loaded = MQL.engineLoaded();
+    const badge = (on, text) => el("span", { class: "eng-badge", "data-on": on ? "yes" : "no", text });
+    const act = (text, fn, cls = "stop") => el("button", { class: cls, type: "button", text, onclick: fn });
+    const use = k => act("Use this", () => { MQL.useEngine(k); sampleChecked = false; setAI("ready"); toast("Now using: " + ENGINE_NAME[k]); }, "guide-ok");
+    const item = (k, title, desc, status, actions) => el("div", { class: "eng-item", "data-current": cur === k && ready(k) ? "yes" : "no" },
+      el("div", { class: "eng-item-top" }, el("b", { text: title }), cur === k && ready(k) ? badge(true, "In use") : status), el("small", { text: desc }), el("div", { class: "setup-actions" }, ...actions.filter(Boolean)));
+    sec.append(el("p", { class: "guide-lede", text: "Choose which AI writes MedQuery's answers. Reports are always read by an AI on this device." }), el("div", { class: "eng-items" },
+      item("online", "Online AI (no download)", MQL.ONLINE_MODEL_LABEL + (st.online.provider === "puter" ? " via Puter" : st.online.url ? " on MedQuery's server" : "") + ". Search words are sent online.",
+        badge(ready("online"), ready("online") ? "Set up" : "Not set up"),
+        ready("online") ? [cur !== "online" && use("online"), act("Test", () => testEngine("online")), act("Turn off", async () => { await MQL.forgetEngine("online"); sampleChecked = false; setAI(MQL.isSetUp() ? "ready" : "not_setup"); })] : [act("Set up", () => openSetup("online"), "guide-ok")]),
+      item("browser", "Downloaded AI (this browser)", ready("browser") ? m.short + " · " + gb(m.gb) + " saved · " + (loaded ? "using about " + gb(m.ramGb) + " memory now" : "not using memory now") : "Private, works offline. 1.6–6.5 GB download.",
+        badge(ready("browser"), ready("browser") ? "Installed" : "Not downloaded"),
+        ready("browser") ? [cur !== "browser" && use("browser"), loaded && act("Free memory now", async () => { await MQL.freeMemory(); drawSetup(); }), act("Change size", () => { chosenModel = st.model; chosenPlace = "browser"; openSetup("download"); }),
+          act("Remove", async () => { if (!confirm("Remove the downloaded AI (" + gb(m.gb) + ") from this browser?")) return; await MQL.removeAI(st.model); sampleChecked = false; setAI(MQL.isSetUp() ? "ready" : "not_setup"); toast("The downloaded AI was removed from this device."); }, "stop danger")]
+          : [act("Download", () => { chosenPlace = "browser"; openSetup("download"); }, "guide-ok")]),
+      item("ollama", "Ollama app (folder you choose)", ready("ollama") ? st.ollamaModel + (st.ollamaFolder ? " · saved in " + st.ollamaFolder : "") : "Bigger models saved in any folder, on Windows, Mac or Linux.",
+        badge(ready("ollama"), ready("ollama") ? "Connected" : "Not set up"),
+        ready("ollama") ? [cur !== "ollama" && use("ollama"), act("Test", () => testEngine("ollama")), act("Settings", () => openSetup("ollama")), act("Disconnect", async () => { await MQL.forgetEngine("ollama"); sampleChecked = false; setAI(MQL.isSetUp() ? "ready" : "not_setup"); })] : [act("Set up", () => openSetup("ollama"), "guide-ok")])),
+      el("p", { class: "note", id: "engTest", "aria-live": "polite" }),
+      el("label", { class: "eng-toggle" }, el("input", { type: "checkbox", ...(resState().open ? { checked: "" } : {}), onchange: e => toggleResWidget(e.target.checked) }), " Show the resource usage widget"),
+      el("div", { class: "guide-actions" }, act("Restart MedQuery", restartMedQuery), el("button", { class: "guide-ok", type: "button", text: "Done", onclick: closeSetup })));
+  }
+  async function testEngine(kind) {
+    const out = $("#engTest"); if (out) out.textContent = "Testing " + ENGINE_NAME[kind] + "…";
+    const prev = MQL.loadSettings().engine; MQL.useEngine(kind);
+    const t0 = Date.now();
+    try { const s = await MQL.getSampler({ onProgress: engineProgress, needSetup }); const r = await s("Say OK.", { maxTokens: 8 }); if (out) out.textContent = "✓ " + ENGINE_NAME[kind] + " works (replied “" + r.text.slice(0, 30) + "” in " + ((Date.now() - t0) / 1000).toFixed(1) + " s)."; }
+    catch (e) { if (out) out.textContent = "✕ " + ENGINE_NAME[kind] + " didn't answer: " + (e?.message || e); }
+    finally { MQL.useEngine(prev); }
+  }
+
   function drawProgress() {
     const host = setupBox?.querySelector("#setupProg"); if (!host) return;
     host.replaceChildren(
       el("div", { class: "eng-prog" }, el("div", { class: "eng-prog-top" }, el("span", { text: AI.line || "Preparing…" }), el("b", { text: AI.pct + "%" })), el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })), AI.eta ? el("small", { class: "note", text: AI.eta }) : null),
-      el("ul", { class: "setup-tips" }, el("li", { text: "Keep this tab open. You can close this window and keep reading; progress shows at the top right." }), el("li", { text: "If the connection drops, the parts already downloaded are kept, so setup continues from where it stopped." })),
+      AI.setupKind === "browser" ? el("ul", { class: "setup-tips" }, el("li", { text: "Keep this tab open. You can close this window and keep reading; progress shows at the top right and in the resource widget." }), el("li", { text: "If the connection drops, the parts already downloaded are kept, so setup continues from where it stopped." })) : null,
       el("div", { class: "guide-actions" },
-        el("button", { class: "stop", type: "button", text: "Cancel setup", onclick: () => { if (confirm("Stop the setup? Parts already downloaded are kept, so it can continue later. The page will reload.")) location.reload(); } }),
+        AI.setupKind === "browser" ? el("button", { class: "stop", type: "button", text: "Cancel download", onclick: () => { if (confirm("Stop the download? Parts already downloaded are kept, so it can continue later. The page will reload.")) location.reload(); } }) : el("span"),
         el("button", { class: "guide-ok", type: "button", text: "Continue in background", onclick: () => { setupBox?.remove(); setupBox = null; } })));
   }
-  async function startSetup(kind) {
+  async function startSetup(kind, provider) {
     const st = MQL.loadSettings();
-    st.engine = kind; if (kind === "browser") st.model = chosenModel; MQL.saveSettings(st);
-    setAI("setting_up", { pct: 0, line: kind === "ollama" ? "Connecting to Ollama" : "Starting the download", eta: "", error: "" });
+    if (kind === "browser") { st.model = chosenModel; MQL.saveSettings(st); }
+    setAI("setting_up", { setupKind: kind, pct: 0, line: kind === "online" ? "Connecting to the online AI" : kind === "ollama" ? "Testing Ollama" : "Starting the download", eta: "", error: "" });
     try {
-      await MQL.setup({ onProgress: engineProgress });
+      const r = await MQL.setup({ engine: kind, provider, onProgress: engineProgress });
       sampleChecked = false; sample = null;
-      setAI("ready", { evicted: false, view: "" });
-      if (AI.pending) { const p = AI.pending; toast("The AI is ready. " + (p.type === "search" ? "Searching for “" + p.q + "”…" : "Reading your report…")); setTimeout(() => { closeSetup(); AI.pending = p; runPending(); }, 900); }
-      else toast("The AI is ready. You can search now.");
+      if (kind === "online") {
+        setAI("ready", { evicted: false, view: "" });
+        toast("The online AI is on." + (AI.pending ? "" : " You can search now."));
+        if (AI.pending) { const p = AI.pending; setTimeout(() => { closeSetup(); AI.pending = p; runPending(); }, 700); } else closeSetup();
+      } else {
+        // Downloads: confirm the installation, then offer the restart
+        AI.installed = { kind, reply: r.reply };
+        if (!setupBox?.isConnected) openSetup("confirm");
+        setAI("ready", { evicted: false, view: "confirm" });
+      }
     } catch (e) {
-      const msg = e?.code === "no_webgpu" ? e.message : e?.code === "ollama_model_missing" ? "That model isn't installed in Ollama yet." : /quota|space|storage/i.test(String(e?.message)) ? "There isn't enough free storage. Free up space or choose a smaller size." : /fetch|network|Failed to/i.test(String(e?.message)) ? "The download was interrupted. Check your internet; setup will continue where it stopped." : /memory|device lost|OOM/i.test(String(e?.message)) ? "The device ran out of graphics memory. Choose a smaller size." : "Something went wrong (" + String(e?.message || e).slice(0, 120) + ").";
-      setAI("error", { error: msg, view: kind === "ollama" ? "ollama" : "" });
+      const m = String(e?.message || e);
+      const msg = e?.code === "no_webgpu" ? m : e?.code === "ollama_model_missing" ? "That AI isn't downloaded in Ollama yet." : e?.code === "puter_signin" ? "Sign in to Puter first." : e?.code === "daily_limit" ? "Today's free online allowance is used up. Try tomorrow or download the AI." : e?.code === "online_unreachable" ? "Couldn't reach the online AI. Check your internet." :
+        /quota|space|storage/i.test(m) ? "There isn't enough free storage. Free up space or choose a smaller size." : /fetch|network|Failed to/i.test(m) ? "The connection was interrupted. Check your internet and try again; downloads continue where they stopped." : /memory|device lost|OOM/i.test(m) ? "The device ran out of graphics memory. Choose a smaller size." : "Something went wrong (" + m.slice(0, 120) + ").";
+      setAI(MQL.isSetUp() ? "ready" : "error", { error: msg, setupKind: kind, view: kind === "ollama" ? "ollama" : kind === "online" ? "online" : "download" });
+      if (!setupBox?.isConnected) { openSetup(AI.view); }
+      if (MQL.isSetUp()) toast("Setup didn't finish: " + msg);
     }
   }
-  function drawManage(sec, st) {
-    const m = pickModel(st.model), loaded = MQL.engineLoaded();
-    const ol = st.engine === "ollama";
-    sec.append(el("ul", { class: "chk-list" },
-      row(true, ol ? "Using Ollama · " + st.ollamaModel : "Using " + m.short + " (" + m.label.split(" (")[0] + ")", ol ? "Runs in the Ollama app on this computer." : "Set up " + new Date(st.setup.browser?.at || Date.now()).toLocaleDateString()),
-      ol ? null : row(true, "Storage: " + gb(m.gb) + " in this browser", "Stays until you remove it."),
-      ol ? null : row(loaded ? null : true, loaded ? "Memory: in use (about " + gb(m.ramGb) + ")" : "Memory: not in use", loaded ? "Freed automatically after 10 minutes without a search." : "The AI starts in a few seconds when you search.")),
-      el("div", { class: "setup-actions" },
-        !ol && loaded ? el("button", { class: "stop", type: "button", text: "Free memory now", onclick: async () => { await MQL.freeMemory(); drawSetup(); } }) : null,
-        el("button", { class: "stop", type: "button", text: "Change size or use Ollama", onclick: () => { AI.view = "change"; chosenModel = st.model; drawSetup(); } }),
-        !ol ? el("button", { class: "stop danger", type: "button", text: "Remove AI from this device", onclick: async () => {
-          if (!confirm("Remove the AI (" + gb(m.gb) + ") from this browser? You'll need to set it up again before searching.")) return;
-          await MQL.removeAI(st.model); sampleChecked = false; setAI("not_setup", { view: "" }); toast("The AI was removed from this device.");
-        } }) : null),
-      el("div", { class: "guide-actions" }, el("span", { class: "note", text: "Settings are saved on this device only." }), el("button", { class: "guide-ok", type: "button", text: "Done", onclick: closeSetup })));
-  }
   function copyCode(text) { return el("span", { class: "code-row" }, el("code", { text }), copyBtn(text, "Copy")); }
-  function drawOllama(sec, st) {
-    const origin = location.origin.startsWith("http") ? location.origin : "https://shibin-t.github.io";
-    const urlIn = el("input", { id: "engUrl", type: "url", value: st.ollamaUrl, "aria-label": "Ollama address" });
-    const olSel = el("select", { id: "engOllama", "aria-label": "Ollama model" }, el("option", { value: st.ollamaModel || "", text: st.ollamaModel || "Connect first to list your models" }));
-    const status = el("p", { class: "note", "aria-live": "polite", text: AI.state === "error" ? AI.error : "" });
-    const go = el("button", { class: "guide-ok", type: "button", text: "Set up with Ollama", disabled: st.ollamaModel ? null : "" });
-    const connect = el("button", { class: "stop", type: "button", text: "Connect" });
-    connect.addEventListener("click", async () => {
-      status.textContent = "Connecting to Ollama…";
-      try { const ms = await MQL.ollamaModels(urlIn.value); olSel.replaceChildren(...ms.map(x => el("option", { value: x.name, text: x.name + (x.gb ? " · " + x.gb + " GB" : "") }))); if (st.ollamaModel) olSel.value = st.ollamaModel; status.textContent = ms.length ? "Connected. Choose a model, then set up." : "Connected, but no models are installed yet. Do step 2, then connect again."; go.disabled = !ms.length; }
-      catch { status.textContent = "Couldn't reach Ollama. Make sure the Ollama app is open and step 3 is done, then try again."; }
-    });
-    go.addEventListener("click", () => { const ns = MQL.loadSettings(); ns.ollamaUrl = urlIn.value.trim() || "http://localhost:11434"; ns.ollamaModel = olSel.value; MQL.saveSettings(ns); startSetup("ollama"); });
-    sec.append(
-      el("p", { class: "guide-lede", text: "Ollama is a free app that runs bigger, more accurate AI models on a Windows, Mac or Linux computer. It uses about 5 GB of storage and 6–8 GB of memory while answering." }),
-      el("ol", { class: "eng-steps big" },
-        el("li", {}, "Download and install Ollama from ", el("a", { href: "https://ollama.com/download", target: "_blank", rel: "noopener", text: "ollama.com/download" }), ", then open it."),
-        el("li", {}, "Open Terminal (Mac or Linux) or Command Prompt (Windows), paste this and press Enter. It downloads the model (about 5 GB):", copyCode("ollama pull qwen3:8b")),
-        el("li", {}, "Allow MedQuery to use Ollama. Paste the line for your computer, press Enter, then quit Ollama and open it again:",
-          el("div", { class: "os-codes" }, el("small", { text: "Windows" }), copyCode(`setx OLLAMA_ORIGINS "${origin}"`), el("small", { text: "Mac" }), copyCode(`launchctl setenv OLLAMA_ORIGINS "${origin}"`), el("small", { text: "Linux" }), copyCode(`OLLAMA_ORIGINS="${origin}" ollama serve`))),
-        el("li", {}, "Click Connect, choose the model, then Set up.", el("div", { class: "row-flex" }, urlIn, connect), olSel, status)),
-      el("div", { class: "guide-actions" }, el("button", { class: "linkish", type: "button", text: "← Back", onclick: () => { AI.view = AI.state === "ready" ? "change" : ""; if (AI.state === "error") AI.state = "not_setup"; drawSetup(); } }), go));
-  }
-  function drawAlternatives(sec) {
-    const here = location.href.split("#")[0];
-    sec.append(el("h3", { class: "setup-h", text: "Other ways to use MedQuery" }), el("ol", { class: "eng-steps big" },
-      el("li", {}, el("b", { text: "Use Chrome or Microsoft Edge" }), " (recent version) on a computer, or Chrome on a recent Android phone. Copy this page's link and open it there: ", copyCode(here)),
-      el("li", {}, el("b", { text: "Use the free Ollama app" }), " on a Windows, Mac or Linux computer. ", el("button", { class: "linkish", type: "button", text: "Show me how →", onclick: () => { AI.view = "ollama"; drawSetup(); } })),
-      el("li", {}, el("b", { text: "Use MedQuery inside Claude" }), ": answers come from Claude instead, with no setup (needs a Claude account). ", el("a", { href: "https://claude.ai/artifact/6oTi5orvxdrwWaz4LJsSX4", target: "_blank", rel: "noopener", text: "Open MedQuery in Claude ↗" }))),
-      el("div", { class: "guide-actions" }, el("span"), el("button", { class: "guide-ok", type: "button", text: "Close", onclick: closeSetup })));
-  }
   // Older entry point name, kept so existing buttons still work
-  const openEngineSettings = openSetup;
+  const openEngineSettings = () => openSetup();
+
+  // ----- Resource usage widget: movable, can be minimised, closed and reopened -----
+  const RES_KEY = "medquery.resWidget";
+  const resState = () => { try { return JSON.parse(localStorage.getItem(RES_KEY) || "null") || { open: true, min: innerWidth < 600 }; } catch { return { open: true, min: false }; } };
+  const saveRes = s => { try { localStorage.setItem(RES_KEY, JSON.stringify(s)); } catch {} };
+  let resBox = null, resTimer = null, storageUsed = null, gpuName = null, lastStorageCheck = 0;
+  function toggleResWidget(force) { const s = resState(); s.open = force ?? !s.open; saveRes(s); renderResWidget(); updateEngineChip(); }
+  function placeRes(box, s) {
+    const w = box.offsetWidth || 260, h = box.offsetHeight || 60;
+    const x = Math.min(Math.max(8, s.x ?? 16), innerWidth - w - 8), y = Math.min(Math.max(8, s.y ?? innerHeight - h - 90), innerHeight - h - 8);
+    box.style.left = x + "px"; box.style.top = y + "px";
+  }
+  function renderResWidget() {
+    if (IN_CLAUDE || !MQL) return;
+    const s = resState();
+    if (!s.open || AI.state === "checking") { resBox?.remove(); resBox = null; clearInterval(resTimer); resTimer = null; return; }
+    if (!resBox?.isConnected) {
+      resBox = el("aside", { class: "res-widget no-tr", "aria-label": "Resource usage" });
+      document.body.append(resBox);
+      resTimer = setInterval(() => { if (!document.hidden) renderResWidget(); }, 2000);
+      MQL.onUsage(() => renderResWidget());
+      if (gpuName === null) { gpuName = ""; (async () => { try { const a = await navigator.gpu?.requestAdapter(); const i = a?.info || (a?.requestAdapterInfo ? await a.requestAdapterInfo() : null); gpuName = [i?.vendor, i?.description || i?.architecture].filter(Boolean).join(" ").trim(); } catch {} })(); }
+    }
+    if (Date.now() - lastStorageCheck > 15000) { lastStorageCheck = Date.now(); navigator.storage?.estimate?.().then(e => { storageUsed = e?.usage ?? null; }).catch(() => {}); }
+    const st = MQL.loadSettings(), u = MQL.usage, k = st.engine, ready = MQL.isSetUp(st), m = pickModel(st.model);
+    const working = u.working, secs = working ? Math.round((Date.now() - u.startedAt) / 1000) : 0;
+    const status = AI.state === "setting_up" ? "Setting up · " + AI.pct + "%" : !ready ? "Not set up" : working ? "Working · " + secs + " s" : "Idle";
+    const memAI = !ready ? "None" : k === "online" ? "None on this device" : k === "ollama" ? "In the Ollama app while answering (about 6–8 GB)" : MQL.engineLoaded() ? "About " + gb(m.ramGb) + " (AI loaded)" : "None (AI not loaded)";
+    const rows = [
+      ["AI", ready ? MQL.describeEngine(k) : "None yet"],
+      ["Runs", !ready ? "—" : k === "online" ? "Online (search words sent)" : "On this device"],
+      ["Status", status],
+      ["AI memory", memAI],
+      performance.memory ? ["Page memory", fmtBytes(performance.memory.usedJSHeapSize)] : null,
+      ["Storage used", storageUsed == null ? "…" : fmtBytes(storageUsed)],
+      ["Data this visit", fmtBytes(u.downloadBytes + u.lookupBytes + u.onlineBytes) + (u.downloadBytes ? " (incl. AI download)" : "")],
+      u.lastMs ? ["Last answer", (u.lastMs / 1000).toFixed(1) + " s · about " + Math.round(u.lastChars / 5 / Math.max(.5, u.lastMs / 1000)) + " words/s"] : null,
+      k === "online" && ready ? ["Online today", MQL.onlineToday() + " question" + (MQL.onlineToday() === 1 ? "" : "s") + " (free allowance)"] : null,
+      AI.device?.battery ? ["Battery", AI.device.battery.level + "%" + (AI.device.battery.charging ? ", charging" : "")] : null,
+      k === "browser" && gpuName ? ["Graphics chip", gpuName + (working ? " · busy" : "")] : null
+    ].filter(Boolean);
+    const tone = AI.state === "setting_up" || working ? "busy" : ready ? "on" : "off";
+    const head = el("div", { class: "res-head", title: "Drag to move" },
+      el("span", { class: "eng-dot", "data-tone": tone, "aria-hidden": "true" }),
+      el("b", { text: s.min ? status + (ready && k !== "online" && MQL.engineLoaded() ? " · " + gb(m.ramGb) + " in use" : "") : "Resource usage" }),
+      el("button", { class: "res-btn-mini", type: "button", "aria-label": s.min ? "Expand" : "Minimise", text: s.min ? "▴" : "–", onclick: () => { const n = resState(); n.min = !n.min; saveRes(n); renderResWidget(); } }),
+      el("button", { class: "res-btn-mini", type: "button", "aria-label": "Close (reopen with the 📊 button at the top right)", text: "×", onclick: () => toggleResWidget(false) }));
+    const body = s.min ? null : el("div", { class: "res-body" }, el("dl", {}, ...rows.flatMap(([a, b]) => [el("dt", { text: a }), el("dd", { text: b })])),
+      AI.state === "setting_up" ? el("div", { class: "eng-prog-bar" }, el("i", { style: "width:" + AI.pct + "%" })) : null,
+      el("p", { class: "res-note", text: "Browsers don't report live graphics-chip load or exact AI memory; memory figures are estimates." }),
+      el("div", { class: "res-actions" }, ready && k === "browser" && MQL.engineLoaded() ? el("button", { class: "mini", type: "button", text: "Free memory", onclick: async () => { await MQL.freeMemory(); renderResWidget(); } }) : null, el("button", { class: "mini", type: "button", text: "AI menu", onclick: () => openSetup() })));
+    resBox.dataset.min = s.min ? "yes" : "no";
+    resBox.replaceChildren(head, body || "");
+    placeRes(resBox, s);
+    // drag by the header
+    head.addEventListener("pointerdown", e => {
+      if (e.target.closest("button")) return;
+      const r = resBox.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+      head.setPointerCapture(e.pointerId);
+      const move = ev => { const n = resState(); n.x = ev.clientX - dx; n.y = ev.clientY - dy; placeRes(resBox, n); resBox._pos = n; };
+      const up = () => { head.removeEventListener("pointermove", move); head.removeEventListener("pointerup", up); if (resBox._pos) { const n = resState(); n.x = parseInt(resBox.style.left); n.y = parseInt(resBox.style.top); saveRes(n); } };
+      head.addEventListener("pointermove", move); head.addEventListener("pointerup", up);
+    });
+  }
+  addEventListener("resize", () => { if (resBox) placeRes(resBox, resState()); });
 
   claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; } return inClaude ? null : loadLocalModule(); }).then(async () => {
     if (IN_CLAUDE || !MQL) return;
     const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); }
-    MQL.onEngineState(() => { if (setupBox?.isConnected && AI.state === "ready") drawSetup(); });
+    MQL.onEngineState(() => { if (setupBox?.isConnected && AI.view === "menu") drawSetup(); renderResWidget(); });
     setAI("checking");
     const v = await MQL.verifySetup();
-    if (v.ok) { setAI("ready"); return; }
-    const gpu = st.engine === "browser" ? await MQL.webgpuStatus() : { ok: true };
-    setAI(gpu.ok ? "not_setup" : "unsupported", { evicted: !!v.evicted });
+    MQL.deviceCheck().then(d => { AI.device = d; renderResWidget(); }).catch(() => {});
+    setAI(v.ok ? "ready" : "not_setup", { evicted: !!v.evicted });
+    resumeAfterRestart();
   }).catch(e => console.warn("AI status check failed:", e));
 
   async function run(q, opts2 = {}) {
@@ -2777,9 +3024,10 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
         const { kind, term } = mode !== "auto" ? { kind: mode, term: q } : await detectKind(q, s, myCtl.signal);
         ui.status("Looking up free official sources…");
         const g = await MQL.ground(opts2.context ? str(opts2.context.title) : term, kind === "question" ? "disease" : kind, q);
-        ui.status("Writing the answer on your device…");
+        const writingMsg = MQL.loadSettings().engine === "online" ? "Writing the answer with the online AI…" : "Writing the answer on your device…";
+        ui.status(writingMsg);
         d = await s.json(MQL.answerPrompt({ q, kind, context: g.context, detail: !!opts2.detail, langNote: LANG_NOTE(), followUp: opts2.context ? str(opts2.context.title) : "" }), {
-          signal: myCtl.signal, maxTokens: opts2.detail ? 2000 : 1300, onText: ({ text }) => { ui.writing(); ui.status("Writing the answer on your device… " + text.length.toLocaleString() + " characters"); }
+          signal: myCtl.signal, maxTokens: opts2.detail ? 2000 : 1300, onText: ({ text }) => { ui.writing(); ui.status(writingMsg + " " + text.length.toLocaleString() + " characters"); }
         });
         if (d && typeof d === "object") {
           d.kind = d.kind && KINDS[d.kind] ? d.kind : kind;
@@ -2788,7 +3036,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
           d.trials = g.trials || [];
           if (g.drug && d.kind === "drug") { d.drug ||= {}; d.drug.status = g.drug.status; d.drug.statusNote = g.drug.status === "approved" ? "" : g.drug.status === "experimental" ? `Highest stage reached: clinical trial phase ${g.drug.phase}. Not approved (source: ChEMBL).` : g.drug.status === "withdrawn" ? "Withdrawn from the market (source: ChEMBL)." : "A research compound, not an approved medicine (source: ChEMBL)."; }
           if (!g.sources.length) { d.confidence = "low"; d.uncertainty = str(d.uncertainty) || "No official source could be reached, so this answer comes only from a small on-device AI and may be wrong. Check it with a doctor or a trusted source."; d.needsResearch = true; }
-          d.engineNote = "Answered on your device · " + s.describe();
+          d.engineNote = "Answered by " + s.describe();
         }
       } else {
         d = await s.json(buildPrompt(q, opts2.context, !!opts2.detail), {

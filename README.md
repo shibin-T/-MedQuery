@@ -10,6 +10,7 @@ A smart search engine for medical questions. One search bar for diseases and the
 |---|---|---|
 | [`site/`](site/) | The MedQuery app: `index.html` (the whole page) and `local-ai.js` (the free on-device AI). | **Inside Claude:** answers come from Claude. **Anywhere else** (e.g. GitHub Pages): answers come from an AI running free on the visitor's own device. |
 | [`care-map/`](care-map/) | MedQuery Care Map: a live street map of nearby hospitals and clinics, sorted nearest first. | Any static web host, such as GitHub Pages. Uses OpenStreetMap; needs no Claude and no API keys. |
+| [`worker/`](worker/) | MedQuery's online AI server: a small Cloudflare Worker using Workers AI (Gemma 4), with step-by-step setup. | Cloudflare's free plan. |
 | [`docs/`](docs/) | Notes, including [`LEARNING.md`](docs/LEARNING.md), a beginner's guide to Git, GitHub and the code in this project. | Read on GitHub. |
 
 ## Features
@@ -24,18 +25,21 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Experimental tag:** anything not approved for routine use (only in clinical trials or early research) is clearly tagged **Experimental**, with links to ClinicalTrials.gov and the WHO trials registry.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
 
-## Free on-device AI (outside Claude)
+## AI outside Claude: online or downloaded
 
-When MedQuery is opened outside Claude, it runs its AI on the visitor's own device, so it's free for everyone and questions stay private.
+When MedQuery is opened outside Claude (for example on GitHub Pages), visitors choose how its AI runs. Searches and reports wait until one is set up; the **AI** button at the top right always shows the status and opens the **AI menu**.
 
-- **Set up once, then search.** Searches and reports wait until the AI is set up. The **AI** button at the top right always shows the status (*not set up*, *setting up 42%*, *ready*), and a banner under the search bar offers **Set up AI** until it's done.
-- **The setup screen** checks the device (browser support, memory, free storage, mobile data, battery), recommends a size, and says exactly what it will use: download size, storage, memory while running, graphics chip and battery use, and what goes over the internet per search. It shows progress with time left; if the connection drops it continues where it stopped. Your search starts automatically when setup finishes.
-- **Sizes** (Qwen 3.5, run with WebLLM in Chrome or Edge with WebGPU): Smallest 1.6 GB, Light 2.3 GB, Standard 3.9 GB, Most accurate 6.5 GB. Memory is freed after 10 minutes without a search, and the AI can be removed from the device at any time.
-- **No WebGPU?** The setup screen offers step-by-step alternatives: Chrome/Edge on a computer, the free [Ollama](https://ollama.com) app (copy-paste commands for Windows, Mac and Linux), or MedQuery inside Claude.
-- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources and tells the model to answer only from them: MeSH definitions, MedlinePlus and Clinical Tables (NLM), openFDA labels, RxNav, Cochrane reviews and open-access research (Europe PMC), Mondo/Orphanet rare-disease definitions, published UK Biobank studies, 1000 Genomes variant frequencies (Ensembl) and ChEMBL approval stages. HealthData.gov datasets are listed as links.
-- **Experimental treatments** from ClinicalTrials.gov (trials recruiting now, phases 1–3) are shown as they are, tagged **Experimental**, not rewritten by the AI.
-- **Highlighted words** are defined from MeSH first, which works even before the AI is set up.
-- **Reports** are read with on-device text recognition (Tesseract.js); nothing is uploaded anywhere.
+| Option | What it is | Download | Privacy |
+|---|---|---|---|
+| **Online AI** (no download) | Google's open Gemma 4 · 26B on MedQuery's free Cloudflare server ([`worker/`](worker/)), or through Puter until that server is set up (visitors sign in to a free Puter account) | None | Search words go online; reports never do |
+| **Downloaded AI** (this browser) | Qwen 3.5 run with WebLLM: Smallest 1.6 GB, Light 2.3 GB, Standard 3.9 GB, Most accurate 6.5 GB | Once, into the browser's storage | Everything stays on the device |
+| **Ollama app** (folder you choose) | The free [Ollama](https://ollama.com) app on Windows, Mac or Linux, saving the AI in any folder or drive | About 5 GB | Everything stays on the device |
+
+- **Downloads ask where to save the AI** (inside the browser, or a folder you choose via Ollama, with copy-paste commands), check the device, explain what it will use, show progress, **confirm the installation with a test answer, and restart MedQuery**, which then carries on with your search or report.
+- **AI menu:** switch between AIs, test them, free memory, change size, remove the download, disconnect Ollama or turn off the online AI.
+- **Resource usage widget** (📊 button, top right): which AI is in use, where it runs, status, AI and page memory, storage, data used this visit, last answer speed, online questions today, battery and graphics chip. It can be dragged, minimised, closed and reopened.
+- **Reports are only read on the device** (downloaded AI or Ollama), with on-device text recognition (Tesseract.js).
+- **Grounded answers:** before answering, MedQuery looks the topic up in free official sources and tells the AI to answer only from them: MeSH, MedlinePlus and Clinical Tables (NLM), openFDA labels, RxNav, Cochrane reviews and open-access research (Europe PMC), Mondo/Orphanet, UK Biobank studies, 1000 Genomes (Ensembl) and ChEMBL. Clinical trials from ClinicalTrials.gov are shown as they are, tagged **Experimental**.
 - **Care near you** uses live OpenStreetMap hospital data.
 
 Small on-device models are less reliable than Claude, especially in Indian languages. Answers say so when sources are thin.

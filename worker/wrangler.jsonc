@@ -1,0 +1,8 @@
+// Settings for deploying with Wrangler (Cloudflare's command-line tool).
+// Not needed if you set the Worker up in the Cloudflare dashboard (see README.md).
+{
+  "name": "medquery-ai",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "ai": { "binding": "AI" }
+}

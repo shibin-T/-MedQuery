@@ -170,3 +170,16 @@ This change was published to the live site from another session, so it existed o
 | ClinVar, LOINC, WHO trials registry | Genetic variants, lab test names and codes, trials worldwide (links) |
 
 **5. Showing data as it is.** Clinical trials are displayed straight from ClinicalTrials.gov instead of being passed through the AI, so a small model can't misreport them. **Lesson:** when a fact comes from a trusted database, show it directly; use the AI only to explain.
+
+### Commit: "Offer online or downloaded AI, with an AI menu, restart step and resource widget"
+**Why a server for the online AI?** A web page is public: anyone can read its code. So it can't hold a secret API key. The usual solution is a tiny **server in the middle** (here a Cloudflare Worker in `worker/`): the page sends the question to the Worker, and the Worker, which can hold permissions safely, asks the AI. The Worker also only accepts requests from your website (**CORS**) and limits how often one person can ask (**rate limiting**), so nobody can use up your free allowance.
+
+**Streaming (Server-Sent Events).** The Worker sends the answer back in small pieces, each line starting with `data:`. `readSSE()` in `local-ai.js` reads the pieces as they arrive, so words appear while the AI is still writing.
+
+**Why restart after a download?** Restarting starts MedQuery fresh with the new AI switched on, which is a simple way to be sure everything uses it. Before reloading, MedQuery saves what you were doing in `sessionStorage` (storage that lasts until the tab closes) and picks it up after the reload. For a report, the file is saved as a *data URL* (the file's bytes written as text).
+
+**Why can't a website choose a download folder?** Browsers keep each website's data in a private, sandboxed area so sites can't write files anywhere on your computer. That's a security feature. To save the AI in a folder you choose, MedQuery uses the Ollama app, which is allowed to: the `OLLAMA_MODELS` setting tells it where.
+
+**The draggable widget** uses *pointer events* (`pointerdown`, `pointermove`, `pointerup`), which work for mouse, touch and pen alike. Its position, minimised state and whether it's open are saved in `localStorage`.
+
+**Being honest about limits.** Browsers don't report live graphics-chip load or exactly how much memory the AI uses, so the widget shows estimates and says so.

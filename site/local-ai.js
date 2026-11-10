@@ -21,6 +21,23 @@
 const WEBLLM_URL = "https://esm.run/@mlc-ai/web-llm@0.2.87";
 const TESSERACT_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@7.0.0/dist/tesseract.min.js";
 const SETTINGS_KEY = "medquery.localAI";
+const PUTER_URL = "https://js.puter.com/v2/";
+
+// ---------- ONLINE AI (no download) ----------
+// Address of MedQuery's own free AI server (a Cloudflare Worker; see worker/README.md).
+// Leave empty until it's deployed: the online option then uses Puter instead.
+export const ONLINE_SERVER = "";
+export const ONLINE_MODEL_LABEL = "Gemma 4 · 26B (Google's open model)";
+const PUTER_MODEL = "google/gemma-4-26b-a4b-it";
+
+// Live usage numbers for the resource widget (this visit only)
+export const usage = { lookupBytes: 0, onlineBytes: 0, downloadBytes: 0, requests: 0, working: false, lastMs: 0, lastChars: 0, startedAt: 0 };
+const TODAY_KEY = "medquery.onlineToday";
+export function onlineToday() { try { const t = JSON.parse(localStorage.getItem(TODAY_KEY) || "{}"); return t.day === new Date().toDateString() ? t.n : 0; } catch { return 0; } }
+function countOnline() { try { localStorage.setItem(TODAY_KEY, JSON.stringify({ day: new Date().toDateString(), n: onlineToday() + 1 })); } catch {} }
+let usageHook = null;
+export function onUsage(fn) { usageHook = fn; }
+const bump = () => usageHook?.(usage);
 
 // Browser models we offer. Sizes are the one-time download / memory need.
 // gb = one-time download and storage; ramGb = approximate memory used while the AI is running (approximate, varies by device)
@@ -35,7 +52,8 @@ export const BROWSER_MODELS = [
 export function loadSettings() {
   let s = {};
   try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); } catch {}
-  return { engine: s.engine || "browser", model: s.model || "", ollamaUrl: s.ollamaUrl || "http://localhost:11434", ollamaModel: s.ollamaModel || "", downloaded: s.downloaded || {}, setup: s.setup || {} };
+  return { engine: s.engine || "", model: s.model || "", ollamaUrl: s.ollamaUrl || "http://localhost:11434", ollamaModel: s.ollamaModel || "", ollamaFolder: s.ollamaFolder || "",
+    online: { provider: s.online?.provider || "", url: s.online?.url || ONLINE_SERVER }, downloaded: s.downloaded || {}, setup: s.setup || {} };
 }
 export function saveSettings(s) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {} }
 
@@ -49,9 +67,16 @@ export async function suggestModel() {
 
 // ---------- set-up state ----------
 // "Set up" means: the chosen AI has been downloaded (or Ollama connected) AND answered a short test.
-export function isSetUp(s = loadSettings()) {
-  return s.engine === "ollama" ? !!(s.ollamaModel && s.setup.ollama?.model === s.ollamaModel) : !!(s.model && s.setup.browser?.model === s.model);
+// engine: "online" | "browser" (downloaded into the browser) | "ollama" (downloaded into the Ollama app)
+export function engineReady(kind, s = loadSettings()) {
+  if (kind === "online") return !!s.setup.online?.provider;
+  if (kind === "ollama") return !!(s.ollamaModel && s.setup.ollama?.model === s.ollamaModel);
+  if (kind === "browser") return !!(s.model && s.setup.browser?.model === s.model);
+  return false;
 }
+export function isSetUp(s = loadSettings()) { return engineReady(s.engine, s); }
+// Reports never leave the device, so they need an AI that runs here
+export function localEngine(s = loadSettings()) { return s.engine === "browser" || s.engine === "ollama" ? (engineReady(s.engine, s) ? s.engine : null) : engineReady("browser", s) ? "browser" : engineReady("ollama", s) ? "ollama" : null; }
 // Is the model's data still stored in this browser? (Browsers can delete it to free space.) null = can't tell.
 export async function modelOnDisk(modelId) {
   try {
@@ -66,9 +91,9 @@ export async function modelOnDisk(modelId) {
 // Re-check on page load; if the browser cleared the download, the AI needs setting up again
 export async function verifySetup() {
   const s = loadSettings();
-  if (!isSetUp(s)) return { ok: false };
-  if (s.engine === "browser" && (await modelOnDisk(s.model)) === false) { delete s.setup.browser; delete s.downloaded[s.model]; saveSettings(s); return { ok: false, evicted: true }; }
-  return { ok: true };
+  let evicted = false;
+  if (s.setup.browser && (await modelOnDisk(s.setup.browser.model)) === false) { delete s.downloaded[s.setup.browser.model]; delete s.setup.browser; saveSettings(s); evicted = true; }
+  return { ok: isSetUp(s), evicted };
 }
 const browserName = () => { const u = navigator.userAgent; return /Edg\//.test(u) ? "Edge" : /OPR\//.test(u) ? "Opera" : /Chrome\//.test(u) ? "Chrome" : /Firefox\//.test(u) ? "Firefox" : /Safari\//.test(u) ? "Safari" : "this browser"; };
 // What this device offers, in plain terms, for the setup screen
@@ -124,7 +149,7 @@ async function loadBrowserEngine(modelId, onProgress) {
     webllm ||= await import(/* webpackIgnore: true */ WEBLLM_URL);
     if (engine) { try { await engine.unload(); } catch {} engine = null; }
     engine = await webllm.CreateMLCEngine(id, {
-      initProgressCallback: p => onProgress?.({ progress: p.progress ?? 0, text: p.text || "" })
+      initProgressCallback: p => { const mb = +(String(p.text || "").match(/(\d+(?:\.\d+)?)\s*MB fetched/i)?.[1] || 0); if (mb) { usage.downloadBytes = mb * 1e6; bump(); } onProgress?.({ progress: p.progress ?? 0, text: p.text || "" }); }
     });
     engineModel = modelId; stateHook?.("loaded");
     return engine;
@@ -173,6 +198,61 @@ async function chatOllama(messages, { json, onText, signal, settings }) {
   return out;
 }
 
+// --- Online: MedQuery's server (Cloudflare Worker) ---
+export async function serverHealth(url) {
+  const r = await fetch(url.replace(/\/+$/, "") + "/health", { cache: "no-store" });
+  if (!r.ok) throw new Error("server answered " + r.status);
+  return r.json();
+}
+async function readSSE(r, onText, signal) {
+  const reader = r.body.getReader(), dec = new TextDecoder(); let buf = "", out = "";
+  for (;;) {
+    if (signal?.aborted) { try { reader.cancel(); } catch {} throw Object.assign(new Error("cancelled"), { code: "cancelled" }); }
+    const { done, value } = await reader.read(); if (done) break;
+    usage.onlineBytes += value.byteLength;
+    buf += dec.decode(value, { stream: true });
+    let i; while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim(); if (!data || data === "[DONE]") continue;
+      try { const j = JSON.parse(data); const d = j.response ?? j.choices?.[0]?.delta?.content ?? j.choices?.[0]?.text ?? ""; if (d) { out += d; onText?.({ text: out, delta: d }); } } catch {}
+    }
+  }
+  return out;
+}
+async function chatServer(messages, { onText, signal, maxTokens, settings, json }) {
+  const body = JSON.stringify({ messages, max_tokens: maxTokens || 1400, json: !!json });
+  usage.onlineBytes += body.length;
+  let r;
+  try { r = await fetch(settings.online.url.replace(/\/+$/, "") + "/chat", { method: "POST", signal, headers: { "Content-Type": "application/json" }, body }); }
+  catch (e) { if (signal?.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled" }); throw Object.assign(new Error("Couldn't reach MedQuery's online AI. Check your internet."), { code: "online_unreachable" }); }
+  if (r.status === 429) { const j = await r.json().catch(() => ({})); throw Object.assign(new Error(j.error === "daily_limit" ? "Today's free online AI allowance is used up." : "Too many questions at once. Wait a minute."), { code: j.error === "daily_limit" ? "daily_limit" : "rate_limited" }); }
+  if (!r.ok) throw Object.assign(new Error("The online AI had a problem (" + r.status + ")."), { code: "online_error" });
+  countOnline();
+  return readSSE(r, onText, signal);
+}
+// --- Online: Puter (each visitor signs in to a free Puter account, which covers their usage) ---
+function loadScriptOnce(src, test) { return test() ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement("script"); el.src = src; el.onload = res; el.onerror = () => rej(new Error("could not load " + src)); document.head.append(el); }); }
+export async function puterReady() { await loadScriptOnce(PUTER_URL, () => !!window.puter); return window.puter; }
+export async function puterSignedIn() { try { const p = await puterReady(); return !!(await p.auth.isSignedIn()); } catch { return false; } }
+export async function puterSignIn() { const p = await puterReady(); return p.auth.signIn(); } // must be called from a click (it opens a pop-up)
+export async function puterSignOut() { try { const p = await puterReady(); await p.auth.signOut(); } catch {} }
+export async function puterUser() { try { const p = await puterReady(); return (await p.auth.getUser())?.username || ""; } catch { return ""; } }
+async function chatPuter(messages, { onText, signal, maxTokens }) {
+  const p = await puterReady();
+  if (!(await p.auth.isSignedIn())) throw Object.assign(new Error("Sign in to Puter to use the online AI."), { code: "puter_signin" });
+  usage.onlineBytes += JSON.stringify(messages).length;
+  const resp = await p.ai.chat(messages, { model: PUTER_MODEL, stream: true, max_tokens: maxTokens || 1400, temperature: 0.2 });
+  countOnline();
+  let out = "";
+  for await (const part of resp) {
+    if (signal?.aborted) throw Object.assign(new Error("cancelled"), { code: "cancelled" });
+    const t = part?.text || ""; if (t) { out += t; usage.onlineBytes += t.length; onText?.({ text: out, delta: t }); }
+  }
+  return out;
+}
+const chatOnline = (messages, args) => args.settings.online.provider === "puter" ? chatPuter(messages, args) : chatServer(messages, args);
+
 export async function ollamaModels(url) {
   const r = await fetch(url.replace(/\/+$/, "") + "/api/tags");
   if (!r.ok) throw new Error("Ollama answered " + r.status);
@@ -182,27 +262,45 @@ export async function ollamaModels(url) {
 
 // ---------- one-time setup ----------
 // Downloads (or connects) the chosen AI, then checks it with a tiny test answer.
-export async function setup({ onProgress } = {}) {
+// engine: "online" | "browser" | "ollama". Returns { reply } from a tiny test question, used to confirm the installation.
+export async function setup({ engine, provider, onProgress } = {}) {
   const s = loadSettings();
   if (!s.model) s.model = await suggestModel();
   const test = [{ role: "system", content: "Reply with one word." }, { role: "user", content: "Say OK." }];
-  if (s.engine === "ollama") {
+  let reply = "";
+  if (engine === "online") {
+    s.online.provider = provider || (s.online.url ? "server" : "puter");
+    onProgress?.({ progress: .4, text: "Connecting to the online AI" });
+    if (s.online.provider === "server") await serverHealth(s.online.url);
+    reply = await chatOnline(test, { settings: s, maxTokens: 8 });
+    s.setup.online = { provider: s.online.provider, at: Date.now() };
+  } else if (engine === "ollama") {
     const models = await ollamaModels(s.ollamaUrl);
     if (!models.some(m => m.name === s.ollamaModel)) throw Object.assign(new Error("That model isn't installed in Ollama yet."), { code: "ollama_model_missing" });
     onProgress?.({ progress: .5, text: "Testing Ollama" });
-    await chatOllama(test, { settings: s });
-    s.setup.ollama = { model: s.ollamaModel, at: Date.now() };
+    reply = await chatOllama(test, { settings: s });
+    s.setup.ollama = { model: s.ollamaModel, at: Date.now(), gb: models.find(m => m.name === s.ollamaModel)?.gb || null };
   } else {
     try { await navigator.storage?.persist?.(); } catch {} // ask the browser not to delete the download when space is low
     const eng = await loadBrowserEngine(s.model, onProgress);
     onProgress?.({ progress: 1, text: "Testing the AI" });
     const r = await eng.chat.completions.create({ messages: test, max_tokens: 8, temperature: 0, extra_body: { enable_thinking: false } });
     if (!r?.choices?.length) throw Object.assign(new Error("The AI loaded but didn't answer the test."), { code: "test_failed" });
+    reply = r.choices[0]?.message?.content || "";
     s.downloaded[s.model] = true; s.setup.browser = { model: s.model, at: Date.now() };
     touchIdle();
   }
+  s.engine = engine;
   saveSettings(s);
-  return s;
+  return { reply: String(reply).replace(/<think>[\s\S]*?<\/think>/g, "").trim().slice(0, 40) };
+}
+export function useEngine(kind) { const s = loadSettings(); if (!engineReady(kind, s)) return false; s.engine = kind; saveSettings(s); return true; }
+export async function forgetEngine(kind) {
+  const s = loadSettings();
+  if (kind === "online") { if (s.online.provider === "puter") await puterSignOut(); delete s.setup.online; }
+  if (kind === "ollama") delete s.setup.ollama;
+  if (s.engine === kind) s.engine = ["online", "browser", "ollama"].find(k => k !== kind && engineReady(k, s)) || "";
+  saveSettings(s);
 }
 // Delete the downloaded AI from this browser to free storage
 export async function removeAI(modelId) {
@@ -214,7 +312,9 @@ export async function removeAI(modelId) {
       for (const r of await c.keys()) if (r.url.includes(modelId) || (m?.f32 && r.url.includes(m.f32))) await c.delete(r);
     }
   } catch {}
-  const s = loadSettings(); delete s.downloaded[modelId]; if (s.setup.browser?.model === modelId) delete s.setup.browser; saveSettings(s);
+  const s = loadSettings(); delete s.downloaded[modelId]; if (s.setup.browser?.model === modelId) delete s.setup.browser;
+  if (s.engine === "browser") s.engine = ["online", "ollama"].find(k => engineReady(k, s)) || "";
+  saveSettings(s);
 }
 
 // Turn the app's input (a string, or chat turns) into chat messages
@@ -227,22 +327,36 @@ function toMessages(input, system) {
 const SYSTEM = "You are MedQuery, a careful medical information assistant. Be accurate and cautious, use plain language, never invent facts, studies, phone numbers or sources, never give personal doses, and always follow the requested output format exactly.";
 
 // The sampler: same calling shape as Claude's built-in connection
-export async function getSampler(hooks = {}) {
+// options.localOnly: use only an AI that runs on this device (for reports)
+export async function getSampler(hooks = {}, options = {}) {
   const call = async (input, opts = {}, json = false) => {
     const settings = loadSettings();
     if (!settings.model) { settings.model = await suggestModel(); saveSettings(settings); }
+    const kind = options.localOnly ? localEngine(settings) : settings.engine;
     const messages = toMessages(input, SYSTEM + (json ? " Reply with ONE valid JSON value and nothing else." : ""));
     const args = { json, onText: opts.onText, signal: opts.signal, maxTokens: opts.maxTokens, settings,
       onProgress: p => hooks.onProgress?.(p) };
-    if (!isSetUp(settings)) { hooks.needSetup?.(); throw Object.assign(new Error("The AI isn't set up yet"), { code: "ai_not_ready" }); }
-    return settings.engine === "ollama" ? await chatOllama(messages, args) : await chatBrowser(messages, args);
+    if (!kind || !engineReady(kind, settings)) { hooks.needSetup?.(options.localOnly ? "local" : ""); throw Object.assign(new Error("The AI isn't set up yet"), { code: "ai_not_ready" }); }
+    usage.working = true; usage.startedAt = Date.now(); usage.requests++; bump();
+    try {
+      const out = kind === "online" ? await chatOnline(messages, args) : kind === "ollama" ? await chatOllama(messages, args) : await chatBrowser(messages, args);
+      usage.lastMs = Date.now() - usage.startedAt; usage.lastChars = out.length;
+      return out;
+    } catch (e) { if (e?.code === "puter_signin") hooks.needSetup?.("signin"); throw e; }
+    finally { usage.working = false; bump(); }
   };
   const fn = async (input, opts) => ({ text: (await call(input, opts, false)).replace(/<think>[\s\S]*?<\/think>/g, "").trim(), truncated: false });
   fn.json = async (input, opts) => parseJSONLoose(await call(input, opts, true));
   fn.limits = async () => ({ maxPromptBytes: 24000 }); // no direct images: photos go through on-device text recognition
   fn.engine = "local";
-  fn.describe = () => { const s = loadSettings(); return s.engine === "ollama" ? "Ollama · " + (s.ollamaModel || "no model chosen") : (BROWSER_MODELS.find(m => m.id === s.model)?.label.split(" (")[0] || "Browser model"); };
+  fn.describe = () => describeEngine(options.localOnly ? localEngine() : loadSettings().engine);
   return fn;
+}
+
+export function describeEngine(kind, s = loadSettings()) {
+  if (kind === "online") return "Online AI · " + ONLINE_MODEL_LABEL.split(" (")[0] + (s.online.provider === "puter" ? " via Puter" : "");
+  if (kind === "ollama") return "Ollama · " + (s.ollamaModel || "no model chosen");
+  return (BROWSER_MODELS.find(m => m.id === s.model)?.label.split(" (")[0] || "Downloaded AI") + " on this device";
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +365,7 @@ export async function getSampler(hooks = {}) {
 const clip = (s, n) => { s = String(s || "").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim(); return s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : s; };
 async function getJSON(url, ms = 9000) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
-  try { const r = await fetch(url, { signal: ctl.signal, headers: { Accept: "application/json" } }); if (!r.ok) throw new Error(r.status); return await r.json(); }
+  try { const r = await fetch(url, { signal: ctl.signal, headers: { Accept: "application/json" } }); if (!r.ok) throw new Error(r.status); const t = await r.text(); usage.lookupBytes += t.length + url.length; bump(); return JSON.parse(t); }
   finally { clearTimeout(t); }
 }
 // MedlinePlus Connect returns plain-language summaries for a code (ICD-10, LOINC or RxNorm)
