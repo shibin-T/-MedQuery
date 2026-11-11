@@ -212,3 +212,12 @@ This change was published to the live site from another session, so it existed o
 4. **Last resort:** if the AI still replies in plain text, MedQuery shows that text, clearly marked as not organised into sections.
 
 The error message now also shows how the AI's reply began, which makes problems like this much quicker to diagnose.
+
+### Commit: "Open the app from the site's main address" and the first Release
+**Where things live on GitHub:**
+- **Code** (the files) is on the repo's main page. The app itself is `site/index.html`.
+- **Commits** (clock icon, "Commits") list every change, newest first.
+- **Releases** (right-hand side of the repo page) are named versions you choose to announce, such as `v2026.11.10.4`, with notes on what changed. A release is a bookmark on one commit: a *tag*, plus a description.
+- **The live site** is built by GitHub Pages from the `main` branch. Its progress shows under the **Actions** tab ("pages build and deployment").
+
+**The fix:** GitHub Pages serves `index.html` from the top folder. Ours had none, so `shibin-t.github.io/-MedQuery/` showed the README instead of the app. A tiny top-level `index.html` now forwards visitors to `site/`. The repo's About box links to the app, and the README starts with an "Open the app" link.

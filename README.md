@@ -1,5 +1,7 @@
 # MedQuery
 
+**▶ Open the app: [shibin-t.github.io/-MedQuery](https://shibin-t.github.io/-MedQuery/)** · Latest version: see [Releases](https://github.com/shibin-T/-MedQuery/releases)
+
 A smart search engine for medical questions. One search bar for diseases and their pathology, medical tests and their normal values, medicines and how they're taken, and any health question, plus a private lab-report scanner and a "Care near you" hospital finder.
 
 > **Medical disclaimer.** MedQuery gives general health information for learning and reference. It is **not** medical advice and does **not** diagnose. Answers can be incomplete or wrong. Always talk to a qualified doctor about your health, and never delay or ignore medical advice because of something you read here. **In an emergency, call your local emergency number (112 in India).**
