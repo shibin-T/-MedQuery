@@ -1,0 +1,23 @@
+{
+  "appId": "io.github.shibint.medquery",
+  "appName": "MedQuery",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "appReadyTimeout": 15000,
+      "resetWhenUpdate": true,
+      "statsUrl": "",
+      "updateUrl": "",
+      "channelUrl": "",
+      "autoDeletePrevious": true,
+      "autoDeleteFailed": true
+    },
+    "StatusBar": {
+      "overlaysWebView": false
+    }
+  }
+}
