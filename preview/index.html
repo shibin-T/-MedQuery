@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MedQuery Phone Preview</title>
+<meta name="description" content="Try the MedQuery phone app in any browser, at real phone sizes, without installing anything.">
+<link rel="icon" href="../icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,650&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#f3f6f8;--card:#fff;--ink:#132433;--muted:#5a6b78;--rule:#d6dfe6;
+  --accent:#1c5d8c;--accent-ink:#fff;--accent-soft:#e2eef7;--ok:#00a352;--warn:#a3361f;
+  --stage:#dfe7ed;--bezel:#10171d;
+  --f-display:"Source Serif 4",Georgia,serif;--f-body:"Public Sans",system-ui,-apple-system,sans-serif;--f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#0e161d;--card:#15212b;--ink:#e4ecf2;--muted:#93a5b3;--rule:#263643;--accent:#6fb3e3;--accent-ink:#0b1620;--accent-soft:#1b3346;--stage:#0a1015;--bezel:#000;color-scheme:dark}}
+:root[data-theme="dark"]{--paper:#0e161d;--card:#15212b;--ink:#e4ecf2;--muted:#93a5b3;--rule:#263643;--accent:#6fb3e3;--accent-ink:#0b1620;--accent-soft:#1b3346;--stage:#0a1015;--bezel:#000;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:14px/1.45 var(--f-body);display:grid;grid-template-columns:330px 1fr;min-height:100vh}
+@media (max-width:860px){body{grid-template-columns:1fr;grid-template-rows:auto auto}}
+
+/* ---------- control panel */
+.panel{border-right:1.5px solid var(--ink);background:var(--card);padding:20px 18px 28px;display:grid;gap:18px;align-content:start;overflow:auto;max-height:100vh}
+@media (max-width:860px){.panel{border-right:0;border-bottom:1.5px solid var(--ink);max-height:none}}
+.brand h1{margin:0;font:650 1.6rem/1.1 var(--f-display);letter-spacing:-.01em}
+.brand h1 span{color:var(--accent)}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:.86rem}
+.group{display:grid;gap:7px}
+.label{font:500 .7rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+select,button,.btn{font:600 .86rem var(--f-body);color:var(--ink);background:var(--card);border:1.5px solid var(--ink);border-radius:10px;min-height:38px}
+select{width:100%;padding:0 10px}
+button,.btn{cursor:pointer;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;box-shadow:2px 2px 0 var(--ink)}
+button:active,.btn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+button:focus-visible,select:focus-visible,.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;border:1.5px solid var(--ink);border-radius:10px;overflow:hidden;box-shadow:2px 2px 0 var(--ink)}
+.seg button{border:0;border-radius:0;box-shadow:none;min-height:36px;font-size:.8rem;padding:0 6px}
+.seg button+button{border-left:1.5px solid var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1 1 auto}
+.toggle{display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:.88rem}
+.toggle input{margin:2px 0 0;width:18px;height:18px;accent-color:var(--accent);flex:none}
+.toggle small{display:block;color:var(--muted);font-size:.78rem}
+.live{display:flex;align-items:center;gap:8px;font:500 .78rem var(--f-mono);color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.flash{background:#3b9eff;box-shadow:0 0 10px #3b9eff}
+.card{border:1.5px solid var(--ink);border-radius:14px;padding:14px;display:grid;gap:10px;box-shadow:3px 3px 0 var(--ink);background:var(--card)}
+.card h2{margin:0;font:650 1.05rem var(--f-display)}
+.card p{margin:0;font-size:.84rem;color:var(--muted)}
+.qr{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:start}
+.qr-box{width:120px;height:120px;background:#fff;border-radius:8px;padding:4px;border:1.5px solid var(--ink)}
+.qr-box svg{width:100%;height:100%;display:block}
+.url{font:500 .74rem var(--f-mono);overflow-wrap:anywhere;color:var(--ink)}
+.spec{font:500 .74rem var(--f-mono);color:var(--muted)}
+
+/* ---------- stage + phone */
+.stage{position:relative;background:var(--stage);display:grid;place-items:center;overflow:hidden;min-height:100vh;padding:24px}
+@media (max-width:860px){.stage{min-height:80vh}}
+.fit{position:relative}
+.phone{position:absolute;left:0;top:0;transform-origin:0 0;background:var(--bezel);padding:var(--bez);border-radius:var(--outer);box-shadow:0 0 0 2px #2b3743, 0 30px 60px rgba(10,20,30,.35)}
+.screen{position:relative;width:var(--w);height:var(--h);border-radius:var(--inner);overflow:hidden;background:var(--app-bg,#f3f6f8);display:flex;flex-direction:column}
+.screen.dark{--app-bg:#0e161d}
+.sbar{flex:none;height:var(--sb);display:flex;align-items:center;justify-content:space-between;padding:0 var(--sbpad);font:600 14px/1 -apple-system,"SF Pro Text",Roboto,var(--f-body);color:#132433;background:var(--app-bg);position:relative;z-index:2}
+.screen.dark .sbar{color:#e4ecf2}
+.sbar .ic{display:flex;gap:5px;align-items:center}
+.sbar svg{display:block}
+.island{position:absolute;left:50%;transform:translateX(-50%);background:#000;z-index:3}
+.island.pill{top:11px;width:122px;height:35px;border-radius:20px}
+.island.notch{top:0;width:160px;height:31px;border-radius:0 0 20px 20px}
+.island.hole{top:calc(var(--sb) / 2 - 6px);width:12px;height:12px;border-radius:50%}
+.btop,.bbot{flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--app-bg);border-color:rgba(127,140,150,.35);font:500 13px var(--f-body);color:#5a6b78;z-index:2}
+.btop{border-bottom:1px solid rgba(127,140,150,.35)}
+.bbot{border-top:1px solid rgba(127,140,150,.35);justify-content:space-around}
+.btop[hidden],.bbot[hidden]{display:none}
+.urlpill{flex:1;height:34px;border-radius:17px;background:rgba(127,140,150,.16);display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;overflow:hidden;font-size:13px}
+.screen.dark .urlpill{color:#93a5b3}
+iframe{flex:1 1 auto;width:100%;border:0;display:block;background:var(--app-bg)}
+.hbar{flex:none;height:var(--hb);display:grid;place-items:center;background:var(--app-bg);z-index:2}
+.hbar i{display:block;width:134px;height:5px;border-radius:3px;background:#132433;opacity:.85}
+.screen.dark .hbar i{background:#e4ecf2}
+.hbar.android i{width:108px;height:4px}
+.homebtn{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--bez) * -1 + 8px);width:44px;height:44px;border-radius:50%;border:2px solid #3a4652}
+.side{position:absolute;background:#2b3743;border-radius:2px}
+.toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);background:var(--card);color:var(--ink);border:1.5px solid var(--ink);border-radius:999px;padding:6px 14px;font:600 .82rem var(--f-body);box-shadow:2px 2px 0 var(--ink);opacity:0;transition:opacity .25s;pointer-events:none;z-index:10}
+.toast.show{opacity:1}
+.zoomnote{position:absolute;right:14px;bottom:12px;font:500 .72rem var(--f-mono);color:var(--muted)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+</style>
+</head>
+<body>
+<aside class="panel" aria-label="Preview settings">
+  <div class="brand">
+    <h1>Med<span>Query</span></h1>
+    <p>Phone Preview: the real app, at real phone sizes, in any browser. Nothing to install.</p>
+  </div>
+
+  <div class="group">
+    <label class="label" for="device">Phone</label>
+    <select id="device"></select>
+    <div class="spec" id="spec"></div>
+  </div>
+
+  <div class="group">
+    <span class="label" id="modeL">Open as</span>
+    <div class="seg" role="group" aria-labelledby="modeL" id="mode">
+      <button type="button" data-v="app" title="Installed from the home screen, or the Android app: no browser bars">Installed app</button>
+      <button type="button" data-v="browser" title="Opened in Safari or Chrome: browser bars take up room">Browser tab</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <span class="label" id="themeL">Phone theme</span>
+    <div class="seg" role="group" aria-labelledby="themeL" id="theme">
+      <button type="button" data-v="auto">Auto</button>
+      <button type="button" data-v="light">Light</button>
+      <button type="button" data-v="dark">Dark</button>
+    </div>
+  </div>
+
+  <div class="group">
+    <span class="label">Screen</span>
+    <div class="row">
+      <button type="button" id="rotate" title="Turn the phone sideways">⟳ Rotate</button>
+      <button type="button" id="zoom" title="Switch between fitting the window and true size">Fit</button>
+      <button type="button" id="reload" title="Reload the app">↻ Reload</button>
+    </div>
+    <label class="label" for="page" style="margin-top:6px">Page</label>
+    <select id="page">
+      <option value="../site/">MedQuery</option>
+      <option value="../care-map/">Care Map</option>
+    </select>
+  </div>
+
+  <div class="group">
+    <label class="toggle"><input type="checkbox" id="finger" checked><span>Use the mouse like a finger<small>Drag to scroll with momentum, no scrollbars, hold still for a moment to select text.</small></span></label>
+    <label class="toggle"><input type="checkbox" id="auto" checked><span>Reload when changes are pushed<small>Checks GitHub every few seconds and refreshes the phone by itself.</small></span></label>
+    <div class="live" aria-live="polite"><i class="dot" id="liveDot"></i><span id="liveTxt">Starting…</span></div>
+  </div>
+
+  <section class="card" aria-labelledby="realH">
+    <h2 id="realH">Try it on your own phone</h2>
+    <div class="qr">
+      <div class="qr-box" id="qr" role="img" aria-label="QR code for the MedQuery app link"></div>
+      <div style="display:grid;gap:6px">
+        <p>Scan with the phone camera. No install needed; you can add it to the home screen from the browser menu.</p>
+        <span class="url" id="appUrl"></span>
+      </div>
+    </div>
+    <div class="row">
+      <a class="btn" id="openTab" target="_blank" rel="noopener">Open in new tab</a>
+      <a class="btn primary" href="https://github.com/shibin-T/-medquery/releases/tag/app-latest" target="_blank" rel="noopener">Android app (.apk)</a>
+    </div>
+  </section>
+</aside>
+
+<main class="stage" id="stage">
+  <div class="fit" id="fit">
+    <div class="phone" id="phone">
+      <div class="screen" id="screen">
+        <div class="sbar" id="sbar"><span id="clock">9:41</span><span class="ic" aria-hidden="true">
+          <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+          <svg width="15" height="11" viewBox="0 0 15 11" fill="currentColor"><path d="M7.5 2.2c2.1 0 4 .8 5.4 2.1l1.1-1.1A9.2 9.2 0 0 0 7.5.6 9.2 9.2 0 0 0 1 3.2l1.1 1.1a7.6 7.6 0 0 1 5.4-2.1zm0 3.1c1.2 0 2.4.5 3.2 1.3l1.1-1.1a6.1 6.1 0 0 0-8.6 0l1.1 1.1c.8-.8 2-1.3 3.2-1.3zm0 3.1c-.4 0-.9.2-1.1.5L7.5 10l1.1-1.1c-.3-.3-.7-.5-1.1-.5z"/></svg>
+          <svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor"><rect x=".5" y=".5" width="22" height="11" rx="3" opacity=".4"/><rect x="2" y="2" width="16" height="8" rx="1.6" fill="currentColor" stroke="none"/><path d="M24.5 4v4" stroke-linecap="round" opacity=".4"/></svg>
+        </span></div>
+        <div class="btop" id="btop" hidden><div class="urlpill">🔒 <span id="host">shibin-t.github.io</span></div></div>
+        <iframe id="app" title="MedQuery running on a simulated phone" allow="geolocation; camera; clipboard-read; clipboard-write; fullscreen"></iframe>
+        <div class="bbot" id="bbot" hidden></div>
+        <div class="hbar" id="hbar"><i></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status"></div>
+  <div class="zoomnote" id="zoomnote"></div>
+</main>
+
+<script src="qrcode.js"></script>
+<script>
+/* Phone sizes are in CSS pixels: the size the app's layout actually sees on that phone. */
+const DEVICES = {
+  "iphone-se":     { name: "iPhone SE",              os: "ios",     w: 375, h: 667, dpr: 2, sb: 20, hb: 0,  cut: "none",  outer: 46, inner: 0,  bez: 14, homeBtn: true },
+  "iphone-13mini": { name: "iPhone 13 mini",         os: "ios",     w: 375, h: 812, dpr: 3, sb: 50, hb: 34, cut: "notch", outer: 52, inner: 42, bez: 12 },
+  "iphone-16":     { name: "iPhone 16 / 15",         os: "ios",     w: 393, h: 852, dpr: 3, sb: 54, hb: 34, cut: "pill",  outer: 60, inner: 50, bez: 12 },
+  "iphone-16pm":   { name: "iPhone 16 Pro Max",      os: "ios",     w: 440, h: 956, dpr: 3, sb: 62, hb: 34, cut: "pill",  outer: 64, inner: 54, bez: 12 },
+  "pixel-8":       { name: "Google Pixel 8",         os: "android", w: 412, h: 915, dpr: 2.625, sb: 32, hb: 24, cut: "hole", outer: 44, inner: 34, bez: 11 },
+  "galaxy-s24":    { name: "Samsung Galaxy S24",     os: "android", w: 384, h: 832, dpr: 2.8125, sb: 30, hb: 24, cut: "hole", outer: 40, inner: 30, bez: 10 },
+  "redmi-note":    { name: "Redmi Note / Galaxy A (budget Android)", os: "android", w: 393, h: 873, dpr: 2.75, sb: 30, hb: 24, cut: "hole", outer: 40, inner: 30, bez: 12 },
+  "small-android": { name: "Small Android (360 wide)", os: "android", w: 360, h: 740, dpr: 3, sb: 28, hb: 24, cut: "hole", outer: 36, inner: 26, bez: 11 },
+  "ipad-mini":     { name: "iPad mini",              os: "ios",     w: 744, h: 1133, dpr: 2, sb: 24, hb: 20, cut: "none", outer: 40, inner: 22, bez: 20 }
+};
+const BROWSER = { ios: { top: 0, bottom: 50 }, android: { top: 56, bottom: 0 } };  // Safari bar at the bottom, Chrome bar at the top
+
+const $ = s => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const saved = (() => { try { return JSON.parse(localStorage.getItem("mqPreview") || "{}"); } catch { return {}; } })();
+const S = Object.assign({ device: "pixel-8", mode: "app", theme: "auto", landscape: false, fit: true, finger: true, auto: true, page: "../site/" }, saved);
+for (const k of ["device", "mode", "theme", "page"]) if (params.get(k)) S[k] = params.get(k);
+if (!DEVICES[S.device]) S.device = "pixel-8";
+const save = () => { try { localStorage.setItem("mqPreview", JSON.stringify(S)); } catch {} };
+
+/* ---------- controls */
+const devSel = $("#device");
+for (const [id, d] of Object.entries(DEVICES)) devSel.add(new Option(d.name, id));
+devSel.value = S.device;
+devSel.onchange = () => { S.device = devSel.value; save(); render(); };
+const seg = (el, key) => {
+  const paint = () => el.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === S[key])));
+  el.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S[key] = b.dataset.v; save(); paint(); render(); if (key === "theme") reloadApp(); });
+  paint();
+};
+seg($("#mode"), "mode"); seg($("#theme"), "theme");
+$("#rotate").onclick = () => { S.landscape = !S.landscape; save(); render(); };
+$("#zoom").onclick = () => { S.fit = !S.fit; save(); render(); };
+$("#reload").onclick = () => reloadApp("Reloaded");
+$("#page").value = S.page; $("#page").onchange = e => { S.page = e.target.value; save(); loadApp(); };
+$("#finger").checked = S.finger; $("#finger").onchange = e => { S.finger = e.target.checked; save(); reloadApp(); };
+$("#auto").checked = S.auto; $("#auto").onchange = e => { S.auto = e.target.checked; save(); poll(); };
+
+/* ---------- the phone */
+const iframe = $("#app"), screenEl = $("#screen"), phone = $("#phone");
+function geometry() {
+  const d = DEVICES[S.device];
+  let w = d.w, h = d.h, sb = d.sb, hb = d.hb;
+  if (S.landscape) { [w, h] = [h, w]; if (d.os === "ios" && d.w < 600) sb = 0; hb = d.hb ? (d.os === "ios" ? 21 : 24) : 0; }
+  const br = S.mode === "browser" ? BROWSER[d.os] : { top: 0, bottom: 0 };
+  return { d, w, h, sb, hb, br, view: { w, h: h - sb - hb - br.top - br.bottom } };
+}
+function render() {
+  const g = geometry(), d = g.d;
+  phone.style.cssText = `--w:${g.w}px;--h:${g.h}px;--sb:${g.sb}px;--hb:${g.hb}px;--bez:${d.bez}px;--outer:${d.outer}px;--inner:${d.inner}px;--sbpad:${d.os === "ios" ? (d.cut === "none" ? 8 : 30) : 18}px`;
+  phone.style.paddingTop = phone.style.paddingBottom = (d.homeBtn && !S.landscape ? 64 : d.bez) + "px";
+  if (d.homeBtn && S.landscape) phone.style.padding = `${d.bez}px 64px`;
+  // status bar, cut-out and home bar
+  $("#sbar").style.display = g.sb ? "" : "none";
+  screenEl.querySelector(".island")?.remove(); phone.querySelector(".homebtn")?.remove();
+  if (d.cut !== "none" && !S.landscape) { const i = document.createElement("div"); i.className = "island " + d.cut; screenEl.append(i); }
+  if (d.homeBtn && !S.landscape) { const b = document.createElement("div"); b.className = "homebtn"; phone.append(b); }
+  $("#hbar").className = "hbar" + (d.os === "android" ? " android" : "");
+  $("#hbar").style.display = g.hb ? "" : "none";
+  // browser bars
+  $("#btop").hidden = !g.br.top; $("#btop").style.height = g.br.top + "px";
+  $("#bbot").hidden = !g.br.bottom; $("#bbot").style.height = g.br.bottom + "px";
+  if (g.br.bottom) $("#bbot").innerHTML = '<span>‹</span><span>›</span><div class="urlpill" style="flex:0 1 55%">🔒 shibin-t.github.io</div><span>⎙</span><span>❐</span>';
+  // light / dark: an iframe's prefers-color-scheme follows the color-scheme of the <iframe> element
+  const dark = S.theme === "dark" || (S.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches);
+  iframe.style.colorScheme = S.theme === "auto" ? "normal" : S.theme;
+  screenEl.classList.toggle("dark", dark);
+  $("#spec").textContent = `${g.view.w} × ${g.view.h} px for the app · ${g.w} × ${g.h} screen · ${d.dpr}× pixels`;
+  scale();
+}
+function scale() {
+  const box = phone.getBoundingClientRect(), stage = $("#stage").getBoundingClientRect();
+  const W = phone.offsetWidth, H = phone.offsetHeight;
+  const k = S.fit ? Math.min(1, (stage.width - 48) / W, (stage.height - 48) / H) : 1;
+  phone.style.transform = `scale(${k})`;
+  $("#fit").style.width = W * k + "px"; $("#fit").style.height = H * k + "px";
+  $("#zoom").textContent = S.fit ? "True size" : "Fit";
+  $("#zoomnote").textContent = k < 1 ? `Shown at ${Math.round(k * 100)}% to fit · the app still lays out at full phone size` : "";
+}
+addEventListener("resize", scale);
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", render);
+setInterval(() => { const t = new Date(); $("#clock").textContent = t.getHours() + ":" + String(t.getMinutes()).padStart(2, "0"); }, 15000);
+
+/* ---------- loading the app */
+function appUrl() { return new URL(S.page, location.href).href; }
+function loadApp() { hookFrame(); iframe.src = appUrl(); }
+function reloadApp(msg) {
+  hookFrame();
+  try { iframe.contentWindow.location.reload(); } catch { iframe.src = appUrl(); }
+  if (msg) toast(msg);
+}
+// Catch each new page in the phone as early as possible (before its scripts run), to apply the
+// forced light/dark theme and finger mode.
+let hookTimer;
+function hookFrame() {
+  clearInterval(hookTimer);
+  let old = null; try { old = iframe.contentDocument; } catch {}
+  let n = 0;
+  hookTimer = setInterval(() => {
+    let d = null; try { d = iframe.contentDocument; } catch { clearInterval(hookTimer); return; }
+    if (d && d !== old && d.URL !== "about:blank") { clearInterval(hookTimer); prepare(d); }
+    if (++n > 2000) clearInterval(hookTimer);
+  }, 5);
+}
+iframe.addEventListener("load", () => { try { prepare(iframe.contentDocument); } catch {} });
+function prepare(doc) {
+  if (!doc || doc.__mqPrepared) { if (doc) fixSheets(doc); return; }
+  doc.__mqPrepared = true;
+  forceTheme(doc);
+  const ready = () => { fixSheets(doc); if (S.finger) fingerMode(doc); };
+  if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", ready); else ready();
+}
+
+/* Light / Dark: rewrite the app's (prefers-color-scheme) rules and answers inside the phone only. */
+const ON = "(min-width: 0px)", OFF = "(max-width: -1px)";
+const swapQuery = q => q.replace(/\(\s*prefers-color-scheme\s*:\s*(dark|light)\s*\)/gi, (m, v) => v.toLowerCase() === S.theme ? ON : OFF);
+function forceTheme(doc) {
+  if (S.theme === "auto") return;
+  const win = doc.defaultView, mm = win.matchMedia.bind(win);
+  win.matchMedia = q => mm(/prefers-color-scheme/i.test(q) ? swapQuery(q) : q);
+  new win.MutationObserver(() => fixSheets(doc)).observe(doc, { childList: true, subtree: true });
+  doc.addEventListener("load", e => { if (e.target.tagName === "LINK") fixSheets(doc); }, true);
+}
+function fixSheets(doc) {
+  if (S.theme === "auto") return;
+  const walk = rules => { for (const r of rules) {
+    if (r.media && r.cssRules) {
+      const t = r.__mq ??= r.media.mediaText;
+      if (/prefers-color-scheme/i.test(t)) r.media.mediaText = swapQuery(t);
+    }
+    if (r.cssRules) walk(r.cssRules);
+  } };
+  for (const sh of doc.styleSheets) { try { walk(sh.cssRules); } catch {} }
+}
+
+/* "Mouse as a finger": drag to scroll with momentum, hidden scrollbars, round touch cursor,
+   long-press (hold still ~0.45 s) to select text like on a phone. */
+function fingerMode(doc) {
+  if (!doc || doc.getElementById("mq-finger")) return;
+  const win = doc.defaultView;
+  const st = doc.createElement("style"); st.id = "mq-finger";
+  const cur = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><circle cx="15" cy="15" r="11" fill="rgba(120,130,140,.35)" stroke="rgba(40,50,60,.55)" stroke-width="1.5"/></svg>');
+  st.textContent = `*{scrollbar-width:none!important}*::-webkit-scrollbar{display:none!important}
+    html,html *{cursor:url("${cur}") 15 15,pointer!important}html.mq-dragging,html.mq-dragging *{user-select:none!important;-webkit-user-select:none!important}`;
+  doc.head.append(st);
+  const scroller = el => {
+    for (let n = el; n && n !== doc.body && n !== doc.documentElement; n = n.parentElement) {
+      const cs = win.getComputedStyle(n);
+      if (/(auto|scroll)/.test(cs.overflowY) && n.scrollHeight > n.clientHeight + 1) return n;
+    }
+    return doc.scrollingElement;
+  };
+  const skip = el => el.closest("input,textarea,select,[contenteditable=''],[contenteditable='true'],.leaflet-container") ||
+    (() => { for (let n = el; n && n.nodeType === 1; n = n.parentElement) if (win.getComputedStyle(n).touchAction === "none") return true; return false; })();
+  let s = null;
+  doc.addEventListener("mousedown", e => {
+    if (e.button !== 0 || skip(e.target)) return;
+    cancelAnimationFrame(s?.raf);
+    s = { x: e.clientX, y: e.clientY, el: scroller(e.target), moved: false, select: false, vy: 0, vx: 0, t: performance.now() };
+    s.timer = setTimeout(() => { if (s && !s.moved) s.select = true; }, 450);
+  }, true);
+  doc.addEventListener("mousemove", e => {
+    if (!s || s.select || !(e.buttons & 1)) return;
+    const dy = e.clientY - s.y, dx = e.clientX - s.x;
+    if (!s.moved && Math.hypot(dx, dy) < 6) return;
+    if (!s.moved) { s.moved = true; clearTimeout(s.timer); doc.documentElement.classList.add("mq-dragging"); doc.getSelection()?.removeAllRanges(); }
+    const now = performance.now(), dt = Math.max(1, now - s.t);
+    s.el.scrollTop -= dy; s.el.scrollLeft -= dx;
+    s.vy = 0.8 * (dy / dt) + 0.2 * s.vy; s.vx = 0.8 * (dx / dt) + 0.2 * s.vx;
+    s.x = e.clientX; s.y = e.clientY; s.t = now;
+    e.preventDefault();
+  }, true);
+  doc.addEventListener("mouseup", () => {
+    if (!s) return; clearTimeout(s.timer);
+    const st2 = s; s = null;
+    doc.documentElement.classList.remove("mq-dragging");
+    if (!st2.moved) return;
+    // swallow the click that follows a drag, like a phone does
+    const eat = ev => { ev.preventDefault(); ev.stopPropagation(); };
+    doc.addEventListener("click", eat, { capture: true, once: true });
+    setTimeout(() => doc.removeEventListener("click", eat, true), 0);
+    let vy = st2.vy * 16, vx = st2.vx * 16;
+    const step = () => { if (Math.abs(vy) < 0.4 && Math.abs(vx) < 0.4) return; st2.el.scrollTop -= vy; st2.el.scrollLeft -= vx; vy *= 0.95; vx *= 0.95; st2.raf = requestAnimationFrame(step); };
+    if (performance.now() - st2.t < 80) step();
+  }, true);
+  doc.addEventListener("wheel", () => { if (s) cancelAnimationFrame(s.raf); }, { passive: true });
+}
+
+/* ---------- reload when changes are pushed */
+const WATCH = ["../site/index.html", "../site/local-ai.js", "../site/mobile.js", "../care-map/index.html"];
+let sig = null, pollTimer = null, lastCheck = 0;
+async function signature() {
+  const parts = await Promise.all(WATCH.map(f => fetch(new URL(f, location.href), { method: "HEAD", cache: "no-store" })
+    .then(r => r.ok ? (r.headers.get("etag") || r.headers.get("last-modified") || "") : "").catch(() => "")));
+  return parts.join("|");
+}
+function live(state, text) { $("#liveDot").className = "dot" + (state ? " " + state : ""); $("#liveTxt").textContent = text; }
+async function poll() {
+  clearTimeout(pollTimer);
+  if (!S.auto) { live("", "Auto-reload is off"); return; }
+  if (!document.hidden) {
+    const now = await signature(); lastCheck = Date.now();
+    if (!now.replace(/\|/g, "")) live("", "Can't see file versions here; use Reload");
+    else if (sig === null) { sig = now; live("on", "Watching for pushed changes"); }
+    else if (now !== sig) { sig = now; live("flash", "New version found · reloaded " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })); reloadApp("New version loaded"); }
+    else live("on", "Up to date · checked " + new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+  }
+  pollTimer = setTimeout(poll, 5000);
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastCheck > 4000) poll(); });
+
+let toastT;
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 1800); }
+
+/* ---------- open on a real phone */
+function drawQr() {
+  const url = new URL("../site/", location.href).href;
+  $("#appUrl").textContent = url; $("#openTab").href = url; $("#host").textContent = location.host || "local file";
+  try { const q = qrcode(0, "M"); q.addData(url); q.make(); $("#qr").innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }); } catch {}
+  if (/^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname)) $("#appUrl").textContent += "  (this is your computer's own address; a phone can only open it on the same Wi-Fi using the computer's IP)";
+}
+
+render(); loadApp(); drawQr(); poll();
+</script>
+</body>
+</html>
