@@ -1,6 +1,6 @@
 # MedQuery
 
-**▶ Open the app: [shibin-t.github.io/-MedQuery](https://shibin-t.github.io/-MedQuery/)** · Latest version: see [Releases](https://github.com/shibin-T/-MedQuery/releases)
+**▶ Open the app: [shibin-t.github.io/-MedQuery](https://shibin-t.github.io/-MedQuery/)** · **📱 [Phone Preview](https://shibin-t.github.io/-MedQuery/preview/)** · **🤖 [Android app (.apk)](https://github.com/shibin-T/-medquery/releases/tag/app-latest)** · Latest version: see [Releases](https://github.com/shibin-T/-MedQuery/releases)
 
 A smart search engine for medical questions. One search bar for diseases and their pathology, medical tests and their normal values, medicines and how they're taken, and any health question, plus a private lab-report scanner and a "Care near you" hospital finder.
 
@@ -13,6 +13,9 @@ A smart search engine for medical questions. One search bar for diseases and the
 | [`site/`](site/) | The MedQuery app: `index.html` (the whole page) and `local-ai.js` (the free on-device AI). | **Inside Claude:** answers come from Claude. **Anywhere else** (e.g. GitHub Pages): answers come from an AI running free on the visitor's own device. |
 | [`care-map/`](care-map/) | MedQuery Care Map: a live street map of nearby hospitals and clinics, sorted nearest first. | Any static web host, such as GitHub Pages. Uses OpenStreetMap; needs no Claude and no API keys. |
 | [`worker/`](worker/) | MedQuery's online AI server: a small Cloudflare Worker using Workers AI (Gemma 4), with step-by-step setup. | Cloudflare's free plan. |
+| [`app/`](app/) | The Android app: the same `site/` code packaged with Capacitor, with live updates. See [`app/README.md`](app/README.md). | Built for free by GitHub Actions on every push. |
+| [`preview/`](preview/) | **Phone Preview**: try the app in any browser inside a real-size phone frame (iPhone, Pixel, Galaxy…), reloading by itself when you push. | GitHub Pages. |
+| `manifest.webmanifest`, `sw.js`, [`icons/`](icons/) | Make the site installable as a phone app and usable offline. | GitHub Pages. |
 | [`docs/`](docs/) | Notes, including [`LEARNING.md`](docs/LEARNING.md), a beginner's guide to Git, GitHub and the code in this project. | Read on GitHub. |
 
 ## Features
@@ -26,6 +29,13 @@ A smart search engine for medical questions. One search bar for diseases and the
 - **Open health databases:** CDC WONDER (US statistics), WHO's Global Index Medicus (research from low- and middle-income countries), UK Biobank studies, the 1000 Genomes Project and HealthData.gov, alongside open-access journals and public guidelines.
 - **Experimental tag:** anything not approved for routine use (only in clinical trials or early research) is clearly tagged **Experimental**, with links to ClinicalTrials.gov and the WHO trials registry.
 - **Translate** into 130+ languages, **highlight any word** for a definition, and answers based on **open-access** medical sources with a clear note when evidence is uncertain.
+
+## On your phone
+
+- **Try it without installing:** open the [Phone Preview](https://shibin-t.github.io/-MedQuery/preview/) on a computer. Pick a phone, light or dark theme, *Installed app* or *Browser tab*, and drag with the mouse like a finger. Scan its QR code to open MedQuery on your own phone.
+- **Install it (Android and iPhone, free):** open the app link on the phone → browser menu → **Install app** / **Add to Home Screen**. It works offline for pages already opened, and offers a one-tap refresh when a new version is pushed.
+- **Android app:** download **MedQuery.apk** from the [app-latest release](https://github.com/shibin-T/-medquery/releases/tag/app-latest). It updates itself from GitHub; no reinstalling.
+- **Pushing changes:** commit to `main` and that's it. Pages updates the preview and web app in about a minute; GitHub Actions rebuilds the Android app and its live update in about five. Details in [`app/README.md`](app/README.md).
 
 ## AI outside Claude: online or downloaded
 
@@ -68,4 +78,4 @@ Small on-device models are less reliable than Claude, especially in Indian langu
 
 ## Licence
 
-[MIT](LICENSE). The project uses [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), [WebLLM](https://github.com/mlc-ai/web-llm) (Apache-2.0), [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), open models such as Qwen under their own licences, Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).
+[MIT](LICENSE). The project uses [Capacitor](https://capacitorjs.com) (MIT), [Capgo updater](https://github.com/Cap-go/capacitor-updater) (MPL-2.0), [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (MIT), [Leaflet](https://leafletjs.com) (BSD-2), [PDF.js](https://mozilla.github.io/pdf.js/) (Apache-2.0), [WebLLM](https://github.com/mlc-ai/web-llm) (Apache-2.0), [Tesseract.js](https://github.com/naptha/tesseract.js) (Apache-2.0), open models such as Qwen under their own licences, Google Fonts (SIL Open Font License) and [OpenStreetMap](https://www.openstreetmap.org/copyright) data (ODbL, attribution shown on the map).

@@ -221,3 +221,33 @@ The error message now also shows how the AI's reply began, which makes problems 
 - **The live site** is built by GitHub Pages from the `main` branch. Its progress shows under the **Actions** tab ("pages build and deployment").
 
 **The fix:** GitHub Pages serves `index.html` from the top folder. Ours had none, so `shibin-t.github.io/-MedQuery/` showed the README instead of the app. A tiny top-level `index.html` now forwards visitors to `site/`. The README now starts with an "Open the app" link. (You can also add the link to the repo's **About** box: click the ⚙ next to "About" on the repo page and paste it into *Website*.)
+
+### Commit: "Make MedQuery installable as a phone app"
+**What a "web app" (PWA) is.** A website can become an app on the phone's home screen, with its own icon and no browser bars, if it has three things:
+1. A **manifest** (`manifest.webmanifest`): the app's name, icon, colours and which page to open first.
+2. **Icons** (`icons/`): one picture in several sizes, drawn once as `icon.svg`.
+3. A **service worker** (`sw.js`): a small script the browser keeps running for the site. Ours saves a copy of MedQuery's files, so the app still opens without internet. It is **network first**: when you're online it always fetches the newest files, so a push to GitHub reaches the app straight away.
+
+**`site/mobile.js`** is new. `index.html` loads it only outside Claude. It adds the manifest and icons to the page, registers the service worker, offers "Install MedQuery as an app", and checks whether a new version was pushed when you come back to the app. If one was, it shows a **Refresh** button. Inside the Android app it also handles the **Back** button and the status bar.
+
+**Two small fixes in `index.html`:** the Care Map's "back to MedQuery" link now points to wherever you opened MedQuery (it always pointed to the Claude version), and inside the Android app the Care Map opens from the copy packaged with the app.
+
+### Commit: "Add the Android app project (Capacitor)"
+**Capacitor** is a free, open-source tool that puts a website inside a real Android app. The app is mostly a full-screen browser (a *WebView*) showing our own files, plus *plugins* that let the page use phone features, such as the Back button.
+
+- `app/scripts/build-web.mjs` copies `site/`, `care-map/` and `icons/` into `app/www/`, so **the app is never a separate copy to maintain**.
+- `app/android/` is the project Android Studio opens. `AndroidManifest.xml` lists the **permissions**: internet, location (Care near you) and camera (photographing a report).
+- **Live updates** use the open-source Capgo updater plugin, with its cloud service turned off. The app asks GitHub "is there a newer `bundle.zip`?", downloads it in the background, and switches to it on **Restart now** or the next launch. If a new version ever fails to start, the plugin goes back to the last one that worked (`notifyAppReady()` is how the page tells it "I started fine").
+- **Signing:** Android only installs an update over an app if both were signed with the same key. GitHub's computers would otherwise create a new key every time, so a shared key (`medquery-shared.keystore`) is kept in the repository. That's normal for apps you share yourself. A Play Store app would keep its key secret.
+
+### Commit: "Add the Phone Preview page"
+`preview/index.html` shows the real app inside a phone frame. **CSS pixels** are the sizes a page's layout sees; a Pixel 8 is 412 × 915 of them, even though its screen has 2.625× as many real dots. The preview uses each phone's real CSS size, removes the status bar and home bar (or the browser bars, in *Browser tab* mode), and puts the app in an `<iframe>` (a page inside a page) of exactly the size left over.
+
+Because the preview and the app come from the same website, the preview can reach *into* the iframe. That's how it:
+- forces **light or dark** mode, by rewriting the app's `@media (prefers-color-scheme: …)` rules inside the phone only;
+- makes the **mouse act like a finger**: drag to scroll with momentum, hidden scrollbars, and hold still to select text, as you would with a long press.
+
+**Auto-reload** asks GitHub Pages for each file's *ETag*, a fingerprint that changes whenever the file changes, every 5 seconds. A new fingerprint means you pushed, so the phone reloads.
+
+### Commit: "Build the Android app on GitHub for every push"
+**GitHub Actions** runs a list of steps on GitHub's computers whenever something happens, here a push to `main`. The list is in `.github/workflows/android.yml`: install Node and Java → copy the site into the app → build the APK with Gradle (Android's build tool) → upload `MedQuery.apk` and `bundle.zip` to the **app-latest** release. It's free for public repositories. Watch it run under the **Actions** tab: a green tick means the new app is ready, and a red cross shows which step failed.
