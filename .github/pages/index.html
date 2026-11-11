@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MedQuery</title>
+<meta name="description" content="A smart search engine for medical questions.">
+<style>
+:root{--paper:#f3f6f8;--card:#fff;--ink:#132433;--muted:#5a6b78;--rule:#d6dfe6;--accent:#1c5d8c}
+@media (prefers-color-scheme:dark){:root{--paper:#0e161d;--card:#15212b;--ink:#e4ecf2;--muted:#93a5b3;--rule:#263643;--accent:#6fb3e3}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif}
+main{max-width:640px;margin:0 auto;padding:48px 16px;display:grid;gap:14px}
+h1{margin:0;font-size:2.6rem;letter-spacing:-1px}h1 span{color:var(--accent)}p{margin:0;color:var(--muted)}
+a.card{display:block;background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:16px 18px;color:var(--ink);text-decoration:none}
+a.card:hover{border-color:var(--accent)}a.card b{display:block;font-size:1.1rem}a.card span{color:var(--muted);font-size:.92rem}
+small{color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Med<span>Query</span></h1>
+  <p>A smart search engine for medical questions. Nothing to install: open it in any browser, on a PC or a phone.</p>
+  <a class="card" href="app/"><b>Open the MedQuery app →</b><span>Search, sources, Best Care, report scanner, emergency help. Answers need a Claude API key (More › Settings).</span></a>
+  <a class="card" href="site/"><b>MedQuery website</b><span>The original page, with a free AI that runs in your browser.</span></a>
+  <a class="card" href="care-map/"><b>Care Map</b><span>A live map of nearby hospitals and clinics.</span></a>
+  <small>General health information, not medical advice. In an emergency, call your local emergency number.</small>
+</main>
+</body>
+</html>

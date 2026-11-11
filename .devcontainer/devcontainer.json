@@ -1,0 +1,19 @@
+// GitHub Codespaces: an online editor with MedQuery ready to run. No installs on your PC.
+// Open the repo on GitHub -> Code -> Codespaces -> Create codespace.
+// The app starts by itself and opens in a browser tab; it reloads as you edit.
+{
+  "name": "MedQuery",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "cd app && npm ci",
+  "postAttachCommand": {
+    "app": "cd app && npx expo start --web --port 8081"
+  },
+  "forwardPorts": [8081],
+  "portsAttributes": {
+    "8081": { "label": "MedQuery app", "onAutoForward": "openBrowser" }
+  },
+  "customizations": {
+    "codespaces": { "openFiles": ["app/App.js", "app/README.md"] },
+    "vscode": { "extensions": ["expo.vscode-expo-tools", "dbaeumer.vscode-eslint"] }
+  }
+}

@@ -1,0 +1,65 @@
+# Publishes MedQuery to GitHub Pages on every push to main (or when run by hand):
+#   https://<user>.github.io/<repo>/          landing page
+#   https://<user>.github.io/<repo>/app/      the React Native app, built for the web
+#   https://<user>.github.io/<repo>/site/     the MedQuery website
+#   https://<user>.github.io/<repo>/care-map/ the Care Map
+# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install app dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build the app for the web
+        working-directory: app
+        env:
+          CI: "1"
+          EXPO_BASE_URL: /${{ github.event.repository.name }}/app
+        run: npx expo export --platform web --output-dir ../_site/app
+
+      - name: Add the website, Care Map and landing page
+        run: |
+          cp -r site care-map _site/
+          cp .github/pages/index.html _site/index.html
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}app/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -39,6 +39,12 @@ Pick one in **Settings**:
 
 Articles, hospitals and the emergency button work without any AI engine.
 
+## Try it without installing
+
+- **In a browser on any PC or phone:** https://shibin-t.github.io/-MedQuery/app/ (published by `.github/workflows/deploy-pages.yml` on every push to `main`).
+- **Edit live in the browser:** open a GitHub Codespace (**Code → Codespaces → Create codespace**). `.devcontainer/devcontainer.json` installs everything and starts the app; it updates as you save files.
+- **Live on your phone:** in the Codespace terminal run `npx expo start --tunnel` inside `app/` (answer yes if it offers to install `@expo/ngrok`) and scan the QR code with Expo Go.
+
 ## Run it
 
 You need [Node.js](https://nodejs.org) 20 or newer.

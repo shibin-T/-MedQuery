@@ -13,6 +13,18 @@ A smart search engine for medical questions. One search bar for diseases and the
 | [`care-map/`](care-map/) | MedQuery Care Map: a live street map of nearby hospitals and clinics, sorted nearest first. | Any static web host, such as GitHub Pages. Uses OpenStreetMap; needs no Claude and no API keys. |
 | [`docs/`](docs/) | Notes, including [`LEARNING.md`](docs/LEARNING.md), a beginner's guide to Git, GitHub and the code in this project. | Read on GitHub. |
 
+## Try it without installing anything
+
+| Way | Best for | How |
+|---|---|---|
+| **Website link** | Using and testing the app on any PC or phone | After a change reaches `main`, open **https://shibin-t.github.io/-MedQuery/** and choose **Open the MedQuery app**. It rebuilds by itself on every push to `main` (one-time setup below). |
+| **Codespaces** | Changing the code and seeing it update live, all in the browser | On GitHub: **Code → Codespaces → Create codespace**. The app installs and opens in a new tab, and updates a second or two after you save a file. |
+| **On your phone, live** | Seeing changes on a real phone | In the Codespace terminal, stop the app (Ctrl+C), run `cd app && npx expo start --tunnel`, (answer **yes** if it offers to install `@expo/ngrok`), then scan the QR code with the free **Expo Go** app. |
+
+**One-time setup for the website link:** in the repository, open **Settings → Pages**, set **Source** to **GitHub Actions**, then merge to `main` (or open **Actions → Deploy to GitHub Pages → Run workflow**). The workflow publishes the app at `/app/`, the website at `/site/` and the Care Map at `/care-map/`.
+
+The app's answers need an AI engine: add a Claude API key under **More → Settings**. Sources, Best Care, the Care tab and the emergency button work without one.
+
 ## Features
 
 - **One search bar** with live suggestions and pictures as you type.
@@ -38,8 +50,7 @@ When MedQuery is opened outside Claude, it runs its AI on the visitor's own devi
 Small on-device models are less reliable than Claude, especially in Indian languages. Answers say so when sources are thin.
 
 ### Run it on GitHub Pages
-1. Repo **Settings → Pages → Deploy from a branch → `main` / `(root)` → Save**.
-2. Open `https://shibin-t.github.io/-MedQuery/site/` after a minute or two.
+See **Try it without installing anything** above: the website is published at `https://shibin-t.github.io/-MedQuery/site/`.
 
 ## How the pieces fit together
 
