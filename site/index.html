@@ -1618,7 +1618,8 @@ Sildenafil|m|pill|PDE5 inhibitor`;
   let careLoc = (() => { try { return localStorage.getItem(LOCKEY) || ""; } catch { return ""; } })();
   let careCtl = null, careFor = null, careSpec = "";
   // Address of the hosted MedQuery Care Map (set after it is published). Empty = button hidden.
-  const CARE_MAP_URL = "https://shibin-t.github.io/-MedQuery/care-map/";
+  // Inside the phone app (Capacitor) the Care Map ships with the app, so it works without GitHub Pages.
+  const CARE_MAP_URL = window.Capacitor?.isNativePlatform?.() ? new URL("care-map/", location.href).href : "https://shibin-t.github.io/-MedQuery/care-map/";
   function updateMapLink() {
     const a = document.getElementById("mapLink"); if (!a) return;
     if (!CARE_MAP_URL) { a.hidden = true; return; }
@@ -1626,7 +1627,7 @@ Sildenafil|m|pill|PDE5 inhibitor`;
     if (careLoc) u.searchParams.set("loc", careLoc);
     if (careFor) u.searchParams.set("q", careFor.title);
     if (careSpec) u.searchParams.set("spec", careSpec);
-    u.searchParams.set("home", "https://claude.ai/artifact/6oTi5orvxdrwWaz4LJsSX4");
+    u.searchParams.set("home", typeof window.claude?.use === "function" ? "https://claude.ai/artifact/6oTi5orvxdrwWaz4LJsSX4" : location.href.split(/[?#]/)[0]);
     a.href = u.toString(); a.hidden = false;
   }
   const telHref = n => "tel:" + String(n).replace(/[^\d+]/g, "");
@@ -2539,7 +2540,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   const claudeCheck = IN_CLAUDE ? Promise.resolve(true) : new Promise(res => { const t0 = Date.now(); const tick = () => { if (typeof window.claude?.use === "function") { IN_CLAUDE = true; res(true); } else if (Date.now() - t0 > 1500) res(false); else setTimeout(tick, 100); }; tick(); });
   let MQL = null; // the on-device AI module, loaded only outside Claude
   // Version of this page. local-ai.js is loaded with the same version so the browser never mixes an old copy with a new one.
-  const MQ_BUILD = "2026-11-10.4";
+  const MQ_BUILD = "2026-11-11.1";
   async function loadLocalModule() { MQL ||= await import("./local-ai.js?v=" + MQ_BUILD); return MQL; }
   async function getSample() {
     if (sampleChecked) return sample;
@@ -2992,7 +2993,7 @@ Rules: list EVERY lab value on the report (up to 60). status "borderline" = with
   }
   addEventListener("resize", () => { if (resBox) placeRes(resBox, resState()); });
 
-  claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; } return inClaude ? null : loadLocalModule(); }).then(async () => {
+  claudeCheck.then(inClaude => { if (!inClaude) { const pk = $("#carePick"); if (pk) pk.hidden = false; import("./mobile.js?v=" + MQ_BUILD).catch(() => {}); } return inClaude ? null : loadLocalModule(); }).then(async () => {
     if (IN_CLAUDE || !MQL) return;
     const st = MQL.loadSettings(); if (!st.model) { st.model = await MQL.suggestModel(); MQL.saveSettings(st); }
     MQL.onEngineState(() => { if (setupBox?.isConnected && AI.view === "menu") drawSetup(); renderResWidget(); });

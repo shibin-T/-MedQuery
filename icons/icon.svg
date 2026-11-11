@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- MedQuery app icon: a search lens with a medical cross. Full-bleed so it also works as a "maskable" icon. -->
+  <rect width="512" height="512" fill="#1c5d8c"/>
+  <circle cx="226" cy="226" r="104" fill="#e2eef7" stroke="#132433" stroke-width="20"/>
+  <path d="M302 302l84 84" stroke="#132433" stroke-width="44" stroke-linecap="round"/>
+  <path d="M302 302l84 84" stroke="#ffffff" stroke-width="20" stroke-linecap="round"/>
+  <path d="M226 168v116M168 226h116" stroke="#c0392b" stroke-width="34" stroke-linecap="round"/>
+</svg>
