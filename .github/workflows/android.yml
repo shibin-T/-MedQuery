@@ -1,0 +1,93 @@
+# Builds the MedQuery Android app on GitHub's computers (free for public repositories) every time
+# something in the app changes, and publishes it to the "app-latest" release:
+#   MedQuery.apk  – install this on an Android phone (only needed once)
+#   bundle.zip    – the web files; installed apps download this by themselves and update without reinstalling
+name: Build Android app
+
+on:
+  push:
+    branches: [main]
+    paths: ["site/**", "care-map/**", "icons/**", "app/**", ".github/workflows/android.yml"]
+  workflow_dispatch:          # lets you press "Run workflow" on the Actions tab
+
+permissions:
+  contents: write             # needed to update the release
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true    # if you push twice quickly, only the newest build finishes
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      APP_VERSION: 1.0.${{ github.run_number }}
+      APP_BUILD: ${{ github.run_number }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install Capacitor
+        run: npm ci
+
+      - name: Copy the website into the app
+        run: node scripts/build-web.mjs
+
+      - name: Update the Android project
+        run: npx cap sync android
+
+      - name: Build the APK
+        working-directory: app/android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Package
+        run: |
+          mkdir -p ../dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk ../dist/MedQuery.apk
+          (cd www && zip -qr ../../dist/bundle.zip .)
+          ls -la ../dist
+
+      - name: Publish to the app-latest release
+        run: |
+          SHORT=$(echo "$GITHUB_SHA" | cut -c1-7)
+          NOTES=$(printf '%s\n' \
+            "<!-- version: $APP_VERSION -->" \
+            "**MedQuery app $APP_VERSION** · built from commit $SHORT" \
+            "" \
+            "**Install on Android:** open this page on your phone, download **MedQuery.apk** below, open it and allow \"Install unknown apps\" when asked." \
+            "" \
+            "**Already installed?** You don't need to do anything: the app downloads new versions by itself and offers \"Restart now\"." \
+            "" \
+            "**iPhone:** open https://shibin-t.github.io/-MedQuery/site/ in Safari → Share → Add to Home Screen." \
+            "" \
+            "MedQuery gives general health information, not medical advice.")
+          gh release view app-latest >/dev/null 2>&1 || \
+            gh release create app-latest --target "$GITHUB_SHA" --title "MedQuery app" --notes "Preparing the first build…"
+          # Upload files first, then change the version in the notes, so phones never see a version
+          # whose files aren't there yet.
+          gh release upload app-latest ../dist/MedQuery.apk ../dist/bundle.zip --clobber
+          gh release edit app-latest --title "MedQuery app $APP_VERSION" --notes "$NOTES" --latest
+
+      - name: Keep a copy on the run page too
+        uses: actions/upload-artifact@v4
+        with:
+          name: MedQuery-${{ env.APP_VERSION }}
+          path: dist/
+          retention-days: 14
