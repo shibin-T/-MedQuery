@@ -220,4 +220,4 @@ The error message now also shows how the AI's reply began, which makes problems 
 - **Releases** (right-hand side of the repo page) are named versions you choose to announce, such as `v2026.11.10.4`, with notes on what changed. A release is a bookmark on one commit: a *tag*, plus a description.
 - **The live site** is built by GitHub Pages from the `main` branch. Its progress shows under the **Actions** tab ("pages build and deployment").
 
-**The fix:** GitHub Pages serves `index.html` from the top folder. Ours had none, so `shibin-t.github.io/-MedQuery/` showed the README instead of the app. A tiny top-level `index.html` now forwards visitors to `site/`. The repo's About box links to the app, and the README starts with an "Open the app" link.
+**The fix:** GitHub Pages serves `index.html` from the top folder. Ours had none, so `shibin-t.github.io/-MedQuery/` showed the README instead of the app. A tiny top-level `index.html` now forwards visitors to `site/`. The README now starts with an "Open the app" link. (You can also add the link to the repo's **About** box: click the ⚙ next to "About" on the repo page and paste it into *Website*.)
